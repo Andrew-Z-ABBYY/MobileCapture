@@ -519,6 +519,10 @@
             if (!baseUrl.startsWith('https://') && !baseUrl.startsWith('http://')) {
                 baseUrl = `https://${baseUrl}`;
             }
+            
+            // Remove trailing slash to normalize the URL
+            baseUrl = baseUrl.replace(/\/$/, '');
+            
             return baseUrl;
         }
 
@@ -528,8 +532,8 @@
                 throw new Error('Tenant ID is required for authentication');
             }
             
-            const baseDomain = baseUrl.replace(/\/$/, ''); // Remove trailing slash
-            return `${baseDomain}/auth2/${tenantId}/connect/token`;
+            // baseUrl is already normalized (no trailing slash) from getBaseUrl
+            return `${baseUrl}/auth2/${tenantId}/connect/token`;
         }
 
         // Update status display
