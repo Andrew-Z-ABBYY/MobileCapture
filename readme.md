@@ -8,7 +8,7 @@ A pure web-based mobile application for scanning DataMatrix barcodes and process
 - **DataMatrix Barcode Detection**: Automatic scanning using ZXing library with real-time video analysis
 - **Automatic Photo Capture**: Takes photos automatically when DataMatrix is detected
 - **Manual Capture**: Fallback option when auto-detection fails - user can explicitly capture
-- **Vantage Integration**: Direct upload and processing with Vantage Cloud skills
+- **Vantage Integration**: Direct upload and processing with Vantage Cloud skills using Resource Owner Password Credentials flow
 - **Mobile-First Design**: Optimized for mobile devices with responsive UI
 - **Real-time Camera Feed**: Live video preview with scanning overlay
 - **Connection Testing**: Validate credentials before scanning
@@ -40,46 +40,43 @@ You can test the application immediately using hosted demo:
 - ✅ Document should appear in your Vantage transactions
 - ✅ Processing should start automatically in Vantage
 
-### Troubleshooting Test Issues
-
-- **No barcode detection**: Try the manual "Take Picture Now" button
-- **Camera not working**: Ensure you're using HTTPS and granted camera permissions
-- **Vantage errors**: Verify your API client configuration and skill permissions
-
-## ⚙️ Configuration
-
-Fill in the following fields in the app:
-
-| Field | Description | Example |
-|-------|-------------|---------|
-| **Base URL** | Your Vantage server URL | `https://your-server.vantage-cloud.com` |
-| **Client ID** | OAuth client identifier | `your-client-id` |
-| **Client Secret** | OAuth client secret | `your-client-secret` |
-| **Skill ID** | Document processing skill | `your-skill-id` |
-
 ## 🔧 Vantage Cloud Setup
 
-Before using the application, you need to configure your Vantage Cloud instance to allow API access.
+Before using the application, you need to configure your Vantage Cloud instance to allow API access using the Resource Owner Password Credentials flow.
 
-### Step 1: Create API Client in Vantage
+### Step 1: Get Tenant ID
+
+1. **Navigate to** Configuration → General
+2. **Copy** your Tenant ID (GUID format)
+3. **Note**: This is different from tenant name - it's a UUID like `12345678-1234-1234-1234-123456789abc`
+
+### Step 2: Create API Client in Vantage
 
 1. **Log into** your Vantage Cloud instance
-2. **Navigate to** API Clients section
+2. **Navigate to** Configuration → Public API Client section
 3. **Create** a new API Client
-4. **Note down** the Client ID and Client Secret (you'll need these in the app)
-
-### Step 2: Configure API Client Permissions
-
-In the API Client configuration:
-- ✅ **Enable** "Client credentials flow"
-- ✅ **Grant** the "Skill User" role to the API Client  
-- ✅ **Give permission** to use the required skill(s) that will be invoked from the mobile app
+4. **Enable** "Resource Owner Password Credentials" flow
+5. **Note down** the Client ID and Client Secret (you'll need these in the app)
 
 ### Step 3: Get Skill ID
 
 1. **Navigate to** Vantage Skill Catalog
-2. **Find** your desired skill for document processing
-3. **Copy** the Skill ID (you'll enter this in the app configuration)
+2. **Find** your desired skill for document processing and click "Preview skill"
+3. **Copy** the Skill ID from the "More info" section of skill preview panel (you'll enter this in the app configuration)
+
+### Authentication Flow Details
+
+The application uses the **Resource Owner Password Credentials** OAuth 2.0 flow:
+
+- **Authentication URL**: `https://your-vantage-url/auth2/{tenantId}/connect/token`
+- **Grant Type**: `password`
+- **Scope**: `openid permissions global.wildcard`
+- **Required Parameters**: username, password, client_id, client_secret
+
+**Important Notes**:
+- If your email is associated with multiple tenants, the tenant-specific authentication endpoint is used
+- If your account uses external authentication (Google, Microsoft, etc.), this flow may not be available
+- Both Vantage URL and Tenant ID are required for proper authentication
 
 ### Configuration Summary
 
@@ -87,9 +84,12 @@ After completing the Vantage setup, you'll have:
 
 | Value | Where to Find | Where to Use |
 |-------|---------------|--------------|
-| **Base URL** | Your Vantage Cloud instance URL | App configuration |
+| **Vantage URL** | Your Vantage Cloud instance URL | App configuration |
+| **Tenant ID** | Settings → Tenant Information | App configuration |
 | **Client ID** | API Client creation (Step 1) | App configuration |
 | **Client Secret** | API Client creation (Step 1) | App configuration |
+| **Username** | Your login email | App configuration |
+| **Password** | Your login password | App configuration |
 | **Skill ID** | Skill Catalog (Step 3) | App configuration |
 
 ## 🔧 Setup Instructions
@@ -129,7 +129,6 @@ If automatic detection fails:
 2. Tap **"Take Picture Now"** button to explicitly capture
 3. The image will be captured and processed without barcode detection
 
-
 ## 🛠️ Technical Details
 
 ### Libraries Used
@@ -143,8 +142,8 @@ If automatic detection fails:
 The app uses these Vantage Cloud endpoints:
 
 ```
-POST /auth2/connect/token          # Authentication
-POST /api/publicapi/v1/transactions # Create transaction
+POST /auth2/{tenantId}/connect/token        # Authentication (tenant-specific)
+POST /api/publicapi/v1/transactions         # Create transaction
 POST /api/publicapi/v1/transactions/{id}/files # Upload image
 POST /api/publicapi/v1/transactions/{id}/start # Start processing
 ```
@@ -162,6 +161,7 @@ POST /api/publicapi/v1/transactions/{id}/start # Start processing
 - **Credentials Storage**: Client secrets stored in browser memory only
 - **CORS Configuration**: Server must allow cross-origin requests
 - **Token Management**: Access tokens are temporary and auto-refreshed
+- **Authentication Method**: Uses Resource Owner Password Credentials flow - not suitable if external IdP is configured
 
 ## 🎨 Customization
 
@@ -176,7 +176,6 @@ Modify `initializeZXingDetection()` to adjust:
 - Detection frequency
 - Supported barcode formats
 - Error handling behavior
-
 
 ---
 
