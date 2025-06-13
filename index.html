@@ -390,15 +390,6 @@
                     <label for="skill-id">Skill ID</label>
                     <input type="text" id="skill-id" placeholder="your-skill-id" value="">
                 </div>
-                
-                <!-- Vantage URL Configuration -->
-                <div class="form-group">
-                    <label for="vantage-url">Vantage URL</label>
-                    <input type="text" id="vantage-url" placeholder="https://your-vantage-url" value="">
-                    <small style="color: #6c757d; font-size: 0.75rem; margin-top: 4px; display: block;">
-                        💡 Enter the base URL for Vantage (e.g., "https://demo-vantage.abbyy.com"). This is optional if you are using the default tenant-based URL.
-                    </small>
-                </div>
             </div>
 
             <!-- Test Connection Section -->
@@ -538,6 +529,18 @@
             }
             
             throw new Error('Either Vantage URL or Tenant Name must be provided');
+        }
+
+        // Function to construct authentication URL
+        function getAuthUrl(baseUrl, tenant) {
+            // If tenant is provided and baseUrl is a general vantage URL, use tenant-specific auth endpoint
+            if (tenant && tenant.trim() && baseUrl.includes('vantage-eu.abbyy.com') && !baseUrl.includes(tenant)) {
+                // Extract the base domain and add tenant-specific path
+                const baseDomain = baseUrl.replace(/\/$/, ''); // Remove trailing slash
+                return `${baseDomain}/auth2/${tenant}/connect/token`;
+            }
+            // Otherwise use the general auth endpoint
+            return `${baseUrl}/auth2/connect/token`;
         }
 
         // Update status display
@@ -684,14 +687,15 @@
             try {
                 updateStatus('🔐 Authenticating with Vantage...', 'processing');
                 
-                const tokenUrl = `${config.baseUrl}/auth2/connect/token`;
+                // Determine the correct authentication URL
+                const tokenUrl = getAuthUrl(config.baseUrl, config.tenant);
                 console.log('Token URL:', tokenUrl);
                 
                 const formParams = new URLSearchParams();
                 
                 // Correct parameters according to documentation
                 formParams.append('grant_type', 'password');
-                formParams.append('scope', 'openid permissions global.wildcard'); // Fixed scope format
+                formParams.append('scope', 'openid permissions global.wildcard');
                 formParams.append('username', config.username);
                 formParams.append('password', config.password);
                 formParams.append('client_id', config.clientId);
@@ -703,7 +707,8 @@
                     username: config.username,
                     password: '[HIDDEN]',
                     client_id: config.clientId,
-                    client_secret: '[HIDDEN]'
+                    client_secret: '[HIDDEN]',
+                    tenant: config.tenant || 'auto-detected from URL'
                 });
 
                 const response = await fetch(tokenUrl, {
@@ -733,6 +738,14 @@
                         
                         if (errorData.error_description) {
                             errorMessage = errorData.error_description;
+                            
+                            // Add specific guidance for common issues
+                            if (errorData.error_description.includes('invalid_username_or_password')) {
+                                errorMessage += '\n\n💡 Troubleshooting tips:\n';
+                                errorMessage += '• Verify your username and password are correct\n';
+                                errorMessage += '• If your email is associated with multiple tenants, ensure the correct tenant name is specified\n';
+                                errorMessage += '• Check if your account uses external authentication (Google, Microsoft, etc.) - ROPC flow may not be available';
+                            }
                         } else if (errorData.error) {
                             errorMessage = `OAuth Error: ${errorData.error}`;
                             
