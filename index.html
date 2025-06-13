@@ -355,6 +355,8 @@
                 </button>
                 <div id="connection-result" class="status-indicator hidden" style="margin-top: 10px; font-size: 0.8rem;"></div>
             </div>
+
+            <!-- Test Mode Section -->
             <div id="test-section" class="config-section hidden">
                 <h3>🧪 Test Mode (No Camera Required)</h3>
                 <p style="color: #6c757d; font-size: 0.9rem; margin-bottom: 15px;">
@@ -368,6 +370,8 @@
                     🚀 Process Test Barcode
                 </button>
             </div>
+
+            <!-- Camera Section -->
             <div id="camera-section" class="hidden">
                 <div class="camera-container">
                     <div id="scanner-container">
@@ -475,6 +479,46 @@
                 return false;
             }
             return true;
+        }
+
+        // Test server connection - simplified to just call the working authenticateWithVantage function
+        async function testConnection() {
+            if (!getConfig()) return;
+            
+            const testBtn = document.getElementById('test-connection-btn');
+            const resultDiv = document.getElementById('connection-result');
+            
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<span class="loading-spinner"></span>Testing...';
+            resultDiv.classList.remove('hidden');
+            resultDiv.className = 'status-indicator status-processing';
+            resultDiv.textContent = 'Testing authentication...';
+            
+            try {
+                console.log('=== TEST CONNECTION - CALLING EXACT SAME authenticateWithVantage() FUNCTION ===');
+                
+                // This calls the EXACT same function that works during document sending
+                const authSuccess = await authenticateWithVantage();
+                
+                if (authSuccess) {
+                    resultDiv.className = 'status-indicator status-success';
+                    resultDiv.innerHTML = `✅ Authentication successful!<br><small>✓ Using same method as document sending<br>✓ Access token received and stored<br>✓ Ready to process documents!</small>`;
+                    console.log('Test connection successful - same auth function as document sending works');
+                } else {
+                    resultDiv.className = 'status-indicator status-error';
+                    resultDiv.innerHTML = '❌ Authentication failed<br><small>Same authenticateWithVantage() function that works for documents failed in test</small>';
+                    console.log('Test connection failed - unexpected since document sending works');
+                }
+                
+            } catch (error) {
+                console.error('Test connection error:', error);
+                resultDiv.className = 'status-indicator status-error';
+                resultDiv.innerHTML = `❌ Test failed: ${error.message}<br><small>This is unexpected since document sending uses the same function</small>`;
+                
+            } finally {
+                testBtn.disabled = false;
+                testBtn.innerHTML = '🌐 Test Connection';
+            }
         }
 
         // Authenticate with Vantage - Updated to match working FlexiCapture code
@@ -726,188 +770,7 @@
             });
         }
 
-        // Test server connection with more detailed debugging
-        async function testConnection() {
-            if (!getConfig()) return;
-            
-            const testBtn = document.getElementById('test-connection-btn');
-            const resultDiv = document.getElementById('connection-result');
-            
-            testBtn.disabled = true;
-            testBtn.innerHTML = '<span class="loading-spinner"></span>Testing...';
-            resultDiv.classList.remove('hidden');
-            resultDiv.className = 'status-indicator status-processing';
-            resultDiv.textContent = 'Testing connection...';
-            
-            try {
-                // Test 1: Basic connectivity check
-                resultDiv.textContent = '🌐 Step 1: Testing basic connectivity...';
-                const basicUrl = `${config.baseUrl}/auth2/connect/token`;
-                
-                console.log('=== CONNECTION TEST DEBUG ===');
-                console.log('Testing connection to:', basicUrl);
-                console.log('Config:', {
-                    baseUrl: config.baseUrl,
-                    clientId: config.clientId,
-                    clientSecret: config.clientSecret ? '[SET]' : '[NOT SET]',
-                    skillId: config.skillId
-                });
-                
-                let headResponse;
-                try {
-                    headResponse = await fetch(basicUrl, {
-                        method: 'HEAD',
-                        mode: 'cors',
-                        credentials: 'omit'
-                    });
-                    console.log('HEAD request status:', headResponse.status);
-                    console.log('HEAD request headers:', [...headResponse.headers.entries()]);
-                } catch (headError) {
-                    console.log('HEAD request failed:', headError);
-                    resultDiv.className = 'status-indicator status-error';
-                    resultDiv.innerHTML = `❌ Cannot reach server<br><small>Server appears to be unreachable at: ${config.baseUrl}<br>Error: ${headError.message}</small>`;
-                    return;
-                }
-                
-                // Test 2: OPTIONS preflight check (CORS)
-                resultDiv.textContent = '🔍 Step 2: Testing CORS preflight...';
-                try {
-                    const optionsResponse = await fetch(basicUrl, {
-                        method: 'OPTIONS',
-                        mode: 'cors',
-                        credentials: 'omit',
-                        headers: {
-                            'Access-Control-Request-Method': 'POST',
-                            'Access-Control-Request-Headers': 'Content-Type, Authorization'
-                        }
-                    });
-                    console.log('OPTIONS request status:', optionsResponse.status);
-                    console.log('OPTIONS response headers:', [...optionsResponse.headers.entries()]);
-                    
-                    // Check for CORS headers
-                    const corsOrigin = optionsResponse.headers.get('Access-Control-Allow-Origin');
-                    const corsMethods = optionsResponse.headers.get('Access-Control-Allow-Methods');
-                    const corsHeaders = optionsResponse.headers.get('Access-Control-Allow-Headers');
-                    
-                    console.log('CORS Headers:', { corsOrigin, corsMethods, corsHeaders });
-                    
-                    if (!corsOrigin) {
-                        resultDiv.className = 'status-indicator status-error';
-                        resultDiv.innerHTML = `❌ CORS not configured<br><small>Server doesn't allow cross-origin requests.<br>Contact your Vantage admin to enable CORS.</small>`;
-                        return;
-                    }
-                } catch (optionsError) {
-                    console.log('OPTIONS request failed:', optionsError);
-                    // This might be normal if server doesn't support OPTIONS
-                }
-                
-                // Test 3: Authentication attempt with detailed error handling
-                resultDiv.textContent = '🔐 Step 3: Testing authentication...';
-                
-                const tokenUrl = `${config.baseUrl}/auth2/connect/token`;
-                const requestBody = new URLSearchParams({
-                    grant_type: 'client_credentials',
-                    client_id: config.clientId,
-                    client_secret: config.clientSecret,
-                    scope: 'global.wildcard permissions openid'
-                });
-
-                console.log('Auth request details:', {
-                    url: tokenUrl,
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Accept': 'application/json'
-                    },
-                    bodyParams: {
-                        grant_type: 'client_credentials',
-                        client_id: config.clientId,
-                        client_secret: '[HIDDEN]',
-                        scope: 'global.wildcard permissions openid'
-                    }
-                });
-
-                const authResponse = await fetch(tokenUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Accept': 'application/json'
-                    },
-                    body: requestBody,
-                    mode: 'cors',
-                    credentials: 'omit'
-                });
-
-                console.log('Auth response status:', authResponse.status);
-                console.log('Auth response headers:', [...authResponse.headers.entries()]);
-
-                if (!authResponse.ok) {
-                    const errorText = await authResponse.text();
-                    console.log('Auth error response body:', errorText);
-                    
-                    let errorDetails = `HTTP ${authResponse.status}: ${authResponse.statusText}`;
-                    let suggestion = '';
-                    
-                    switch (authResponse.status) {
-                        case 400:
-                            suggestion = 'Check client credentials format';
-                            break;
-                        case 401:
-                            suggestion = 'Invalid client_id or client_secret';
-                            break;
-                        case 403:
-                            suggestion = 'Client may not have required permissions';
-                            break;
-                        case 404:
-                            suggestion = 'Check the token endpoint URL';
-                            break;
-                        case 500:
-                            suggestion = 'Server error - contact Vantage admin';
-                            break;
-                    }
-                    
-                    resultDiv.className = 'status-indicator status-error';
-                    resultDiv.innerHTML = `❌ Authentication failed<br><small>${errorDetails}<br>${suggestion}<br><br>Response: ${errorText}</small>`;
-                    return;
-                }
-
-                // Success!
-                const authData = await authResponse.json();
-                console.log('Auth success! Token length:', authData.access_token?.length);
-                
-                accessToken = authData.access_token;
-                
-                resultDiv.className = 'status-indicator status-success';
-                resultDiv.innerHTML = `✅ Connection successful!<br><small>Authentication working. Token received.<br>Ready to scan documents!</small>`;
-                
-            } catch (error) {
-                console.error('Connection test error:', error);
-                resultDiv.className = 'status-indicator status-error';
-                
-                let errorMessage = 'Unknown error';
-                let suggestion = '';
-                
-                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                    errorMessage = 'Network connection failed';
-                    suggestion = 'Check: 1) Server URL is correct, 2) Server is running, 3) Network connectivity, 4) CORS configuration';
-                } else if (error.message.includes('CORS')) {
-                    errorMessage = 'CORS policy blocked the request';
-                    suggestion = 'Server must allow cross-origin requests from GitHub Pages';
-                } else if (error.message.includes('DNS')) {
-                    errorMessage = 'Could not resolve server address';
-                    suggestion = 'Check if the server URL is correct and accessible';
-                } else {
-                    errorMessage = error.message;
-                    suggestion = 'Check browser console (F12) for more details';
-                }
-                
-                resultDiv.innerHTML = `❌ ${errorMessage}<br><small>${suggestion}<br><br>Full error: ${error.toString()}</small>`;
-                
-            } finally {
-                testBtn.disabled = false;
-                testBtn.innerHTML = '🌐 Test Connection';
-            }
-        }
+        // Show test mode when camera is not available
         function showTestMode() {
             elements.testSection.classList.remove('hidden');
             elements.cameraSection.classList.add('hidden');
@@ -952,8 +815,70 @@
             }
         }
 
-        // Separate function for document processing
-        async function processDocumentWithVantage(barcode, imageBlob) {
+        // Manual capture function - takes picture without barcode detection
+        async function manualCapture() {
+            console.log('Manual capture called, isScanning:', isScanning);
+            
+            if (!isScanning) {
+                // Check if camera stream exists
+                if (!currentStream) {
+                    alert('Camera is not active. Please start the camera first.');
+                    return;
+                }
+                
+                // Camera might be ready but scanning stopped, allow capture anyway
+                console.log('Camera stream exists, allowing manual capture');
+            }
+
+            try {
+                updateStatus('📸 Taking picture manually...', 'processing');
+                console.log('Manual capture initiated');
+                
+                // Temporarily stop scanning if it was active
+                const wasScanning = isScanning;
+                isScanning = false;
+                
+                // Show manual capture info
+                elements.barcodeInfo.classList.remove('hidden');
+                elements.barcodeData.textContent = 'Manual Capture - No barcode required';
+                
+                // Process without barcode
+                await processDocument(null, 'Manual Capture');
+                
+            } catch (error) {
+                console.error('Manual capture error:', error);
+                updateStatus(`❌ Manual capture failed: ${error.message}`, 'error');
+                // Resume scanning if it was active before
+                if (wasScanning) {
+                    isScanning = true;
+                    updateStatus('🔍 Scanning for DataMatrix barcodes...', 'scanning');
+                }
+            }
+        }
+
+        // Updated process function that handles both automatic and manual captures
+        async function processDocument(barcode, captureType) {
+            try {
+                updateStatus('📤 Processing document with Vantage...', 'processing');
+                console.log(`Processing document - Type: ${captureType}, Barcode: ${barcode || 'None'}`);
+                
+                // Capture image from camera
+                const imageBlob = await captureImage();
+                if (!imageBlob) {
+                    updateStatus('❌ Failed to capture image', 'error');
+                    return;
+                }
+
+                await processDocumentWithVantage(barcode, imageBlob, captureType);
+
+            } catch (error) {
+                console.error('Document processing error:', error);
+                updateStatus(`❌ Processing failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Updated Vantage processing function
+        async function processDocumentWithVantage(barcode, imageBlob, captureType) {
             try {
                 updateStatus('📤 Processing document with Vantage...', 'processing');
                 
@@ -962,8 +887,6 @@
                     return;
                 }
 
-                // Create transaction
-                updateStatus('🔄 Creating transaction...', 'processing');
                 const transactionId = await createVantageTransaction();
                 console.log('Transaction created:', transactionId);
 
@@ -976,8 +899,8 @@
                 updateStatus('⚡ Starting document processing...', 'processing');
                 await startTransaction(transactionId);
 
-                // Show success
-                showSuccess(transactionId, barcode);
+                // Show success with capture type info
+                showSuccess(transactionId, barcode, captureType);
 
             } catch (error) {
                 console.error('Processing error:', error);
@@ -990,23 +913,14 @@
             await processDocument(barcode, 'DataMatrix Auto-Detected');
         }
 
-        // Helper function to delete test transactions
-        async function deleteVantageTransaction(transactionId) {
-            const response = await fetch(`${config.baseUrl}/api/publicapi/v1/transactions/${transactionId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Accept': '*/*'
-                },
-                mode: 'cors',
-                credentials: 'omit'
-            });
-            
-            if (!response.ok && response.status !== 404) {
-                throw new Error(`Failed to delete transaction: ${response.status}`);
-            }
-            
-            return true;
+        // Show success screen
+        function showSuccess(transactionId, barcode, captureType) {
+            stopScanning();
+            elements.cameraSection.classList.add('hidden');
+            elements.successSection.classList.remove('hidden');
+            elements.transactionId.textContent = `Transaction ID: ${transactionId}`;
+            elements.resetBtn.classList.remove('hidden');
+            elements.startBtn.classList.add('hidden');
         }
 
         // Check if HTTPS is available
@@ -1137,125 +1051,6 @@
             }
         }
 
-        // Manual capture function - takes picture without barcode detection
-        async function manualCapture() {
-            console.log('Manual capture called, isScanning:', isScanning);
-            
-            if (!isScanning) {
-                // Check if camera stream exists
-                if (!currentStream) {
-                    alert('Camera is not active. Please start the camera first.');
-                    return;
-                }
-                
-                // Camera might be ready but scanning stopped, allow capture anyway
-                console.log('Camera stream exists, allowing manual capture');
-            }
-
-            try {
-                updateStatus('📸 Taking picture manually...', 'processing');
-                console.log('Manual capture initiated');
-                
-                // Temporarily stop scanning if it was active
-                const wasScanning = isScanning;
-                isScanning = false;
-                
-                // Show manual capture info
-                elements.barcodeInfo.classList.remove('hidden');
-                elements.barcodeData.textContent = 'Manual Capture - No barcode required';
-                
-                // Process without barcode
-                await processDocument(null, 'Manual Capture');
-                
-            } catch (error) {
-                console.error('Manual capture error:', error);
-                updateStatus(`❌ Manual capture failed: ${error.message}`, 'error');
-                // Resume scanning if it was active before
-                if (wasScanning) {
-                    isScanning = true;
-                    updateStatus('🔍 Scanning for DataMatrix barcodes...', 'scanning');
-                }
-            }
-        }
-
-        // Updated process function that handles both automatic and manual captures
-        async function processDocument(barcode, captureType) {
-            try {
-                updateStatus('📤 Processing document with Vantage...', 'processing');
-                console.log(`Processing document - Type: ${captureType}, Barcode: ${barcode || 'None'}`);
-                
-                // Capture image from camera
-                const imageBlob = await captureImage();
-                if (!imageBlob) {
-                    updateStatus('❌ Failed to capture image', 'error');
-                    return;
-                }
-
-                await processDocumentWithVantage(barcode, imageBlob, captureType);
-
-            } catch (error) {
-                console.error('Document processing error:', error);
-                updateStatus(`❌ Processing failed: ${error.message}`, 'error');
-            }
-        }
-
-        // Updated Vantage processing function
-        async function processDocumentWithVantage(barcode, imageBlob, captureType) {
-            try {
-                updateStatus('📤 Processing document with Vantage...', 'processing');
-                
-                // Authenticate with Vantage
-                if (!await authenticateWithVantage()) {
-                    return;
-                }
-
-                // Create transaction
-                updateStatus('🔄 Creating transaction...', 'processing');
-                const transactionId = await createVantageTransaction();
-                console.log('Transaction created:', transactionId);
-
-                // Upload image
-                updateStatus('📸 Uploading document...', 'processing');
-                await uploadImageToVantage(transactionId, imageBlob);
-                console.log('Image uploaded successfully');
-
-                // Start processing
-                updateStatus('⚡ Starting document processing...', 'processing');
-                await startTransaction(transactionId);
-
-                // Show success with capture type info
-                showSuccess(transactionId, barcode, captureType);
-
-            } catch (error) {
-                console.error('Processing error:', error);
-                updateStatus(`❌ Processing failed: ${error.message}`, 'error');
-            }
-        }
-
-        // Updated success function
-        function showSuccess(transactionId, barcode, captureType) {
-            stopScanning();
-            elements.cameraSection.classList.add('hidden');
-            elements.successSection.classList.remove('hidden');
-            
-            // Update success message with capture details
-            const captureInfo = barcode ? 
-                `${captureType}: ${barcode}` : 
-                captureType;
-            
-            elements.transactionId.textContent = `Transaction ID: ${transactionId}`;
-            
-            // Add capture info to success screen
-            const captureDetails = document.createElement('p');
-            captureDetails.style.color = '#6c757d';
-            captureDetails.style.fontSize = '0.9rem';
-            captureDetails.textContent = captureInfo;
-            elements.transactionInfo.appendChild(captureDetails);
-            
-            elements.resetBtn.classList.remove('hidden');
-            elements.startBtn.classList.add('hidden');
-        }
-
         // Stop scanning
         function stopScanning() {
             isScanning = false;
@@ -1263,10 +1058,17 @@
                 Quagga.stop();
             }
             
+            // Stop camera stream
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+            
             elements.startBtn.classList.remove('hidden');
             elements.stopBtn.classList.add('hidden');
             elements.configSection.classList.remove('hidden');
             elements.cameraSection.classList.add('hidden');
+            elements.testSection.classList.add('hidden');
         }
 
         // Reset application
@@ -1274,12 +1076,13 @@
             stopScanning();
             elements.successSection.classList.add('hidden');
             elements.configSection.classList.remove('hidden');
+            elements.testSection.classList.add('hidden');
             elements.barcodeInfo.classList.add('hidden');
             elements.resetBtn.classList.add('hidden');
             elements.startBtn.classList.remove('hidden');
             detectedBarcode = null;
             accessToken = '';
-            updateStatus('🔍 Ready to scan', 'scanning');
+            updateStatus('📱 Configure settings and start camera', 'scanning');
         }
 
         // Initialize app
