@@ -14,7 +14,7 @@ You can test the application immediately using hosted demo:
 
 1. **Configure Vantage** following the guidelines provided in the Vantage Cloud Setup section
 2. **Print test document**: Use the sample PDF with DataMatrix barcode located in the `test/` folder of this repository
-3. **Open the demo** on your mobile device
+3. **Open the demo** on your mobile device or laptop
 4. **Enter your Vantage credentials** in the app configuration
 5. **Test connection** to verify your setup
 6. **Start camera** and point it at the printed DataMatrix barcode
@@ -34,8 +34,6 @@ You can test the application immediately using hosted demo:
 - **Camera not working**: Ensure you're using HTTPS and granted camera permissions
 - **Vantage errors**: Verify your API client configuration and skill permissions
 
-## 📋 RequirementsA pure web-based mobile application for scanning DataMatrix barcodes and processing documents through Vantage Cloud. Built with vanilla JavaScript and the ZXing library for reliable barcode detection, this app can run on any mobile device with a modern browser. The application allows you to capture photos and send them to Vantage skills for processing, automatically detecting DataMatrix barcodes in the live video feed and taking photos automatically when a DataMatrix is present, while providing a manual capture button for users to explicitly take photos when no barcode is detected.
-
 ## ✨ Features
 
 - **Universal Compatibility**: Pure web-based app runs on any mobile device
@@ -47,26 +45,6 @@ You can test the application immediately using hosted demo:
 - **Real-time Camera Feed**: Live video preview with scanning overlay
 - **Connection Testing**: Validate credentials before scanning
 - **HTTPS Security**: Required for camera access on modern browsers
-
-## 🚀 Quick Start
-
-1. **Clone or download** the project files
-2. **Host the file** on an HTTPS server (required for camera access)
-3. **Open** `index.html` in a mobile browser
-4. **Configure** your Vantage server credentials
-5. **Start scanning** DataMatrix barcodes!
-
-## 📋 Requirements
-
-### Browser Support
-- Modern mobile browsers (Chrome, Safari, Firefox)
-- Camera access permissions
-- HTTPS connection (or localhost for testing)
-
-### Vantage Configuration
-- Vantage Cloud server
-- Client credentials (ID and Secret)
-- Configured Skill ID for document processing
 
 ## ⚙️ Configuration
 
