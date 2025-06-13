@@ -1,6 +1,18 @@
 # 📱 DataMatrix Document Scanner
 
-// Add this section after the Quick Start section:
+A pure web-based mobile application for scanning DataMatrix barcodes and processing documents through Vantage Cloud. Built with vanilla JavaScript and the ZXing library for reliable barcode detection, this app can run on any mobile device with a modern browser. The application allows you to capture photos and send them to Vantage skills for processing, automatically detecting DataMatrix barcodes in the live video feed and taking photos automatically when a DataMatrix is present, while providing a manual capture button for users to explicitly take photos when no barcode is detected.
+
+## ✨ Features
+
+- **Universal Compatibility**: Pure web-based app runs on any mobile device
+- **DataMatrix Barcode Detection**: Automatic scanning using ZXing library with real-time video analysis
+- **Automatic Photo Capture**: Takes photos automatically when DataMatrix is detected
+- **Manual Capture**: Fallback option when auto-detection fails - user can explicitly capture
+- **Vantage Integration**: Direct upload and processing with Vantage Cloud skills
+- **Mobile-First Design**: Optimized for mobile devices with responsive UI
+- **Real-time Camera Feed**: Live video preview with scanning overlay
+- **Connection Testing**: Validate credentials before scanning
+- **HTTPS Security**: Required for camera access on modern browsers
 
 ## 🧪 Testing the Application
 
@@ -33,18 +45,6 @@ You can test the application immediately using hosted demo:
 - **No barcode detection**: Try the manual "Take Picture Now" button
 - **Camera not working**: Ensure you're using HTTPS and granted camera permissions
 - **Vantage errors**: Verify your API client configuration and skill permissions
-
-## ✨ Features
-
-- **Universal Compatibility**: Pure web-based app runs on any mobile device
-- **DataMatrix Barcode Detection**: Automatic scanning using ZXing library with real-time video analysis
-- **Automatic Photo Capture**: Takes photos automatically when DataMatrix is detected
-- **Manual Capture**: Fallback option when auto-detection fails - user can explicitly capture
-- **Vantage Integration**: Direct upload and processing with Vantage Cloud skills
-- **Mobile-First Design**: Optimized for mobile devices with responsive UI
-- **Real-time Camera Feed**: Live video preview with scanning overlay
-- **Connection Testing**: Validate credentials before scanning
-- **HTTPS Security**: Required for camera access on modern browsers
 
 ## ⚙️ Configuration
 
