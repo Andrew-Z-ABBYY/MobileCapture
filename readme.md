@@ -1,6 +1,40 @@
 # 📱 DataMatrix Document Scanner
 
-A pure web-based mobile application for scanning DataMatrix barcodes and processing documents through Vantage Cloud. Built with vanilla JavaScript and the ZXing library for reliable barcode detection, this app can run on any mobile device with a modern browser. The application allows you to capture photos and send them to Vantage skills for processing, automatically detecting DataMatrix barcodes in the live video feed and taking photos automatically when a DataMatrix is present, while providing a manual capture button for users to explicitly take photos when no barcode is detected.
+// Add this section after the Quick Start section:
+
+## 🧪 Testing the Application
+
+### Live Demo
+
+You can test the application immediately using hosted demo:
+
+**🌐 [https://andrew-z-abbyy.github.io/MobileCapture/](https://andrew-z-abbyy.github.io/MobileCapture/)**
+
+### Testing Steps
+
+1. **Configure Vantage** following the guidelines provided in the Vantage Cloud Setup section
+2. **Print test document**: Use the sample PDF with DataMatrix barcode located in the `test/` folder of this repository
+3. **Open the demo** on your mobile device
+4. **Enter your Vantage credentials** in the app configuration
+5. **Test connection** to verify your setup
+6. **Start camera** and point it at the printed DataMatrix barcode
+7. **Watch automatic detection** - the app should detect the barcode and capture the photo automatically
+8. **Check Vantage transactions** in your Vantage Cloud instance to see the processed document
+
+### Expected Results
+
+- ✅ DataMatrix barcode should be detected automatically
+- ✅ Photo should be captured when barcode is found
+- ✅ Document should appear in your Vantage transactions
+- ✅ Processing should start automatically in Vantage
+
+### Troubleshooting Test Issues
+
+- **No barcode detection**: Try the manual "Take Picture Now" button
+- **Camera not working**: Ensure you're using HTTPS and granted camera permissions
+- **Vantage errors**: Verify your API client configuration and skill permissions
+
+## 📋 RequirementsA pure web-based mobile application for scanning DataMatrix barcodes and processing documents through Vantage Cloud. Built with vanilla JavaScript and the ZXing library for reliable barcode detection, this app can run on any mobile device with a modern browser. The application allows you to capture photos and send them to Vantage skills for processing, automatically detecting DataMatrix barcodes in the live video feed and taking photos automatically when a DataMatrix is present, while providing a manual capture button for users to explicitly take photos when no barcode is detected.
 
 ## ✨ Features
 
@@ -143,17 +177,6 @@ POST /api/publicapi/v1/transactions/{id}/start # Start processing
 - **Canvas API**: Image capture from video stream
 - **Fetch API**: HTTP requests to Vantage server
 - **FormData**: File upload handling
-
-## 📄 File Structure
-
-```
-MobileCapture/
-├── index.html          # Main application file
-├── README.md          # This documentation
-└── (generated files)
-    ├── captured images
-    └── transaction logs
-```
 
 ## 🔒 Security Considerations
 
