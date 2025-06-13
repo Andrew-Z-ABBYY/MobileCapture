@@ -329,28 +329,39 @@
                 
                 <!-- Quick Actions -->
                 <div style="display: flex; gap: 8px; margin-bottom: 15px;">
-                    <button id="demo-mode-btn" class="btn-secondary" onclick="toggleDemoMode()" style="flex: 1; font-size: 0.8rem; padding: 8px;">
-                        🎯 Demo Mode
-                    </button>
                     <button class="btn-secondary" onclick="quickSave()" style="flex: 1; font-size: 0.8rem; padding: 8px;">
-                        💾 Save
+                        💾 Save Config
+                    </button>
+                    <button class="btn-secondary" onclick="deleteConfig()" style="flex: 1; font-size: 0.8rem; padding: 8px;">
+                        🗑️ Delete Config
                     </button>
                 </div>
                 
                 <!-- Saved Configurations -->
-                <div class="form-group" id="saved-configs-group" style="display: none;">
+                <div class="form-group" id="saved-configs-group">
                     <label for="config-profiles">📁 Saved Configurations</label>
                     <select id="config-profiles" onchange="loadConfig(this.value)" style="width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 8px;">
                         <option value="">Select saved configuration...</option>
                     </select>
+                    <small style="color: #6c757d; font-size: 0.75rem; margin-top: 4px; display: block;">
+                        💡 Save configurations for quick access. Select a config and click "Delete Config" to remove it.
+                    </small>
                 </div>
                 
                 <!-- Server Configuration -->
                 <div class="form-group">
-                    <label for="tenant">Tenant Name</label>
+                    <label for="vantage-url">Vantage URL</label>
+                    <input type="text" id="vantage-url" placeholder="https://your-vantage-server.com" value="">
+                    <small style="color: #6c757d; font-size: 0.75rem; margin-top: 4px; display: block;">
+                        💡 Enter your full Vantage server URL (e.g., "https://vantage-eu.abbyy.com")
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="tenant">Tenant Name <span style="color: #6c757d; font-size: 0.8rem;">(Optional if URL provided)</span></label>
                     <input type="text" id="tenant" placeholder="your-tenant-name" value="">
                     <small style="color: #6c757d; font-size: 0.75rem; margin-top: 4px; display: block;">
-                        💡 Just enter your tenant name (e.g., "demo-tenant"). The full URL will be constructed automatically.
+                        💡 If no URL above, enter tenant name to auto-construct URL (e.g., "demo-tenant")
                     </small>
                 </div>
                 
@@ -378,6 +389,15 @@
                 <div class="form-group">
                     <label for="skill-id">Skill ID</label>
                     <input type="text" id="skill-id" placeholder="your-skill-id" value="">
+                </div>
+                
+                <!-- Vantage URL Configuration -->
+                <div class="form-group">
+                    <label for="vantage-url">Vantage URL</label>
+                    <input type="text" id="vantage-url" placeholder="https://your-vantage-url" value="">
+                    <small style="color: #6c757d; font-size: 0.75rem; margin-top: 4px; display: block;">
+                        💡 Enter the base URL for Vantage (e.g., "https://demo-vantage.abbyy.com"). This is optional if you are using the default tenant-based URL.
+                    </small>
                 </div>
             </div>
 
@@ -463,22 +483,13 @@
 
         // Configuration
         const config = {
+            vantageUrl: '',
             tenant: '',
             clientId: '',
             clientSecret: '',
             username: '',
             password: '',
             skillId: ''
-        };
-
-        // Demo configuration with tenant name only
-        const demoConfig = {
-            tenant: 'demo-tenant',
-            clientId: 'demo-client-id',
-            clientSecret: 'demo-client-secret',
-            username: 'demo-user',
-            password: 'demo-password',
-            skillId: 'demo-skill-123'
         };
 
         // DOM elements
@@ -495,7 +506,8 @@
             stopBtn: document.getElementById('stop-btn'),
             resetBtn: document.getElementById('reset-btn'),
             captureBtn: document.getElementById('capture-btn'),
-            tenant: document.getElementById('tenant'), // Changed from baseUrl
+            vantageUrl: document.getElementById('vantage-url'),
+            tenant: document.getElementById('tenant'),
             clientId: document.getElementById('client-id'),
             clientSecret: document.getElementById('client-secret'),
             username: document.getElementById('username'),
@@ -504,15 +516,28 @@
         };
 
         // Function to construct base URL from tenant name
-        function getBaseUrl(tenant) {
-            // Support different Vantage regions
-            if (tenant.includes('.')) {
-                // If tenant already contains domain, use as-is
-                return tenant.startsWith('https://') ? tenant : `https://${tenant}`;
+        function getBaseUrl(vantageUrl, tenant) {
+            // If vantageUrl is provided, use it as base
+            if (vantageUrl && vantageUrl.trim()) {
+                let baseUrl = vantageUrl.trim();
+                // Ensure it starts with https://
+                if (!baseUrl.startsWith('https://') && !baseUrl.startsWith('http://')) {
+                    baseUrl = `https://${baseUrl}`;
+                }
+                return baseUrl;
             }
             
-            // Default to EU region, but you can add logic for other regions
-            return `https://${tenant}.vantage-eu.abbyy.com`;
+            // Fallback to constructing from tenant name if no vantageUrl
+            if (tenant && tenant.trim()) {
+                if (tenant.includes('.')) {
+                    // If tenant already contains domain, use as-is
+                    return tenant.startsWith('https://') ? tenant : `https://${tenant}`;
+                }
+                // Default to EU region
+                return `https://${tenant}.vantage-eu.abbyy.com`;
+            }
+            
+            throw new Error('Either Vantage URL or Tenant Name must be provided');
         }
 
         // Update status display
@@ -524,6 +549,7 @@
         // Save configuration to local storage
         function saveConfig(profileName) {
             const configData = {
+                vantageUrl: elements.vantageUrl.value,
                 tenant: elements.tenant.value,
                 clientId: elements.clientId.value,
                 clientSecret: elements.clientSecret.value,
@@ -548,6 +574,7 @@
             const configData = savedConfigs[profileName];
             
             if (configData) {
+                elements.vantageUrl.value = configData.vantageUrl || '';
                 elements.tenant.value = configData.tenant || '';
                 elements.clientId.value = configData.clientId || '';
                 elements.clientSecret.value = configData.clientSecret || '';
@@ -559,7 +586,7 @@
             }
         }
 
-        // Update configuration dropdown in the UI
+        // Update the updateConfigDropdown function
         function updateConfigDropdown() {
             const savedConfigs = JSON.parse(localStorage.getItem('vantageConfigs') || '{}');
             const dropdown = document.getElementById('config-profiles');
@@ -573,10 +600,10 @@
                     dropdown.appendChild(option);
                 });
                 
-                // Show dropdown if there are saved configs
+                // Always show the dropdown section
                 const savedConfigsGroup = document.getElementById('saved-configs-group');
                 if (savedConfigsGroup) {
-                    savedConfigsGroup.style.display = Object.keys(savedConfigs).length > 0 ? 'block' : 'none';
+                    savedConfigsGroup.style.display = 'block';
                 }
             }
         }
@@ -589,36 +616,9 @@
             }
         }
 
-        // Toggle demo mode for quick testing
-        function toggleDemoMode() {
-            const demoBtn = document.getElementById('demo-mode-btn');
-            const isDemoMode = demoBtn.textContent.includes('Exit');
-            
-            if (isDemoMode) {
-                // Exit demo mode - clear values
-                elements.tenant.value = '';
-                elements.clientId.value = '';
-                elements.clientSecret.value = '';
-                elements.username.value = '';
-                elements.password.value = '';
-                elements.skillId.value = '';
-                demoBtn.textContent = '🎯 Demo Mode';
-                demoBtn.className = 'btn-secondary';
-            } else {
-                // Enter demo mode - fill values
-                elements.tenant.value = demoConfig.tenant;
-                elements.clientId.value = demoConfig.clientId;
-                elements.clientSecret.value = demoConfig.clientSecret;
-                elements.username.value = demoConfig.username;
-                elements.password.value = demoConfig.password;
-                elements.skillId.value = demoConfig.skillId;
-                demoBtn.textContent = '❌ Exit Demo';
-                demoBtn.className = 'btn-danger';
-            }
-        }
-
         // Get configuration from form
         function getConfig() {
+            config.vantageUrl = elements.vantageUrl.value.trim();
             config.tenant = elements.tenant.value.trim();
             config.clientId = elements.clientId.value.trim();
             config.clientSecret = elements.clientSecret.value.trim();
@@ -626,17 +626,22 @@
             config.password = elements.password.value.trim();
             config.skillId = elements.skillId.value.trim();
 
-            if (!config.tenant || !config.clientId || !config.clientSecret || 
+            // Check if either vantageUrl or tenant is provided
+            if ((!config.vantageUrl && !config.tenant) || !config.clientId || !config.clientSecret || 
                 !config.username || !config.password || !config.skillId) {
-                alert('Please fill in all configuration fields');
+                alert('Please fill in all required fields. Either Vantage URL or Tenant Name must be provided.');
                 return false;
             }
             
-            // Construct the base URL from tenant
-            config.baseUrl = getBaseUrl(config.tenant);
-            console.log('Constructed base URL:', config.baseUrl);
-            
-            return true;
+            try {
+                // Construct the base URL from either vantageUrl or tenant
+                config.baseUrl = getBaseUrl(config.vantageUrl, config.tenant);
+                console.log('Constructed base URL:', config.baseUrl);
+                return true;
+            } catch (error) {
+                alert(error.message);
+                return false;
+            }
         }
 
         // Test server connection
@@ -1120,11 +1125,41 @@
             updateStatus('📱 Ready to scan', 'scanning');
         }
 
+        // Delete configuration
+        function deleteConfig() {
+            const dropdown = document.getElementById('config-profiles');
+            const selectedProfile = dropdown.value;
+            
+            if (!selectedProfile) {
+                alert('Please select a configuration to delete.');
+                return;
+            }
+            
+            if (confirm(`Are you sure you want to delete the configuration "${selectedProfile}"?`)) {
+                const savedConfigs = JSON.parse(localStorage.getItem('vantageConfigs') || '{}');
+                delete savedConfigs[selectedProfile];
+                localStorage.setItem('vantageConfigs', JSON.stringify(savedConfigs));
+                
+                // Clear the form if the deleted config was loaded
+                elements.vantageUrl.value = '';
+                elements.tenant.value = '';
+                elements.clientId.value = '';
+                elements.clientSecret.value = '';
+                elements.username.value = '';
+                elements.password.value = '';
+                elements.skillId.value = '';
+                
+                updateConfigDropdown();
+                updateStatus(`✅ Configuration "${selectedProfile}" deleted!`, 'success');
+            }
+        }
+
         // Reset app
         function resetApp() {
             stopScanning();
             
             // Reset form values
+            elements.vantageUrl.value = '';
             elements.tenant.value = '';
             elements.clientId.value = '';
             elements.clientSecret.value = '';
@@ -1153,11 +1188,10 @@
                 resultDiv.classList.add('hidden');
             }
             
-            // Reset demo mode button
-            const demoBtn = document.getElementById('demo-mode-btn');
-            if (demoBtn) {
-                demoBtn.textContent = '🎯 Demo Mode';
-                demoBtn.className = 'btn-secondary';
+            // Reset dropdown selection
+            const dropdown = document.getElementById('config-profiles');
+            if (dropdown) {
+                dropdown.value = '';
             }
             
             updateStatus('📱 Ready to configure', 'scanning');
