@@ -350,7 +350,7 @@
                 
                 <!-- Server Configuration -->
                 <div class="form-group">
-                    <label for="vantage-url">Vantage URL</label>
+                    <label for="vantage-url">Vantage URL <span style="color: #dc3545;">*</span></label>
                     <input type="text" id="vantage-url" placeholder="https://your-vantage-server.com" value="">
                     <small style="color: #6c757d; font-size: 0.75rem; margin-top: 4px; display: block;">
                         💡 Enter your full Vantage server URL (e.g., "https://vantage-eu.abbyy.com")
@@ -358,10 +358,10 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="tenant">Tenant Name <span style="color: #6c757d; font-size: 0.8rem;">(Optional if URL provided)</span></label>
-                    <input type="text" id="tenant" placeholder="your-tenant-name" value="">
+                    <label for="tenant">Tenant ID <span style="color: #dc3545;">*</span></label>
+                    <input type="text" id="tenant" placeholder="your-tenant-id" value="">
                     <small style="color: #6c757d; font-size: 0.75rem; margin-top: 4px; display: block;">
-                        💡 If no URL above, enter tenant name to auto-construct URL (e.g., "demo-tenant")
+                        💡 Enter your tenant ID (GUID format, e.g., "12345678-1234-1234-1234-123456789abc")
                     </small>
                 </div>
                 
@@ -506,41 +506,32 @@
             skillId: document.getElementById('skill-id')
         };
 
-        // Function to construct base URL from tenant name
-        function getBaseUrl(vantageUrl, tenant) {
-            // If vantageUrl is provided, use it as base
-            if (vantageUrl && vantageUrl.trim()) {
-                let baseUrl = vantageUrl.trim();
-                // Ensure it starts with https://
-                if (!baseUrl.startsWith('https://') && !baseUrl.startsWith('http://')) {
-                    baseUrl = `https://${baseUrl}`;
-                }
-                return baseUrl;
+        // Function to construct base URL - both vantageUrl and tenantId are required
+        function getBaseUrl(vantageUrl, tenantId) {
+            if (!vantageUrl || !vantageUrl.trim()) {
+                throw new Error('Vantage URL is required');
             }
             
-            // Fallback to constructing from tenant name if no vantageUrl
-            if (tenant && tenant.trim()) {
-                if (tenant.includes('.')) {
-                    // If tenant already contains domain, use as-is
-                    return tenant.startsWith('https://') ? tenant : `https://${tenant}`;
-                }
-                // Default to EU region
-                return `https://${tenant}.vantage-eu.abbyy.com`;
+            if (!tenantId || !tenantId.trim()) {
+                throw new Error('Tenant ID is required');
             }
             
-            throw new Error('Either Vantage URL or Tenant Name must be provided');
+            let baseUrl = vantageUrl.trim();
+            // Ensure it starts with https://
+            if (!baseUrl.startsWith('https://') && !baseUrl.startsWith('http://')) {
+                baseUrl = `https://${baseUrl}`;
+            }
+            return baseUrl;
         }
 
-        // Function to construct authentication URL
-        function getAuthUrl(baseUrl, tenant) {
-            // If tenant is provided and baseUrl is a general vantage URL, use tenant-specific auth endpoint
-            if (tenant && tenant.trim() && baseUrl.includes('vantage-eu.abbyy.com') && !baseUrl.includes(tenant)) {
-                // Extract the base domain and add tenant-specific path
-                const baseDomain = baseUrl.replace(/\/$/, ''); // Remove trailing slash
-                return `${baseDomain}/auth2/${tenant}/connect/token`;
+        // Function to construct authentication URL - always use tenant-specific endpoint
+        function getAuthUrl(baseUrl, tenantId) {
+            if (!tenantId || !tenantId.trim()) {
+                throw new Error('Tenant ID is required for authentication');
             }
-            // Otherwise use the general auth endpoint
-            return `${baseUrl}/auth2/connect/token`;
+            
+            const baseDomain = baseUrl.replace(/\/$/, ''); // Remove trailing slash
+            return `${baseDomain}/auth2/${tenantId}/connect/token`;
         }
 
         // Update status display
@@ -629,15 +620,15 @@
             config.password = elements.password.value.trim();
             config.skillId = elements.skillId.value.trim();
 
-            // Check if either vantageUrl or tenant is provided
-            if ((!config.vantageUrl && !config.tenant) || !config.clientId || !config.clientSecret || 
+            // All fields are now required
+            if (!config.vantageUrl || !config.tenant || !config.clientId || !config.clientSecret || 
                 !config.username || !config.password || !config.skillId) {
-                alert('Please fill in all required fields. Either Vantage URL or Tenant Name must be provided.');
+                alert('Please fill in all required fields. Both Vantage URL and Tenant ID are required.');
                 return false;
             }
             
             try {
-                // Construct the base URL from either vantageUrl or tenant
+                // Construct the base URL - both parameters are required
                 config.baseUrl = getBaseUrl(config.vantageUrl, config.tenant);
                 console.log('Constructed base URL:', config.baseUrl);
                 return true;
