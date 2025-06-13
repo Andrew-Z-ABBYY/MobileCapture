@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barcode Scanner & Document Processor</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -382,12 +383,20 @@
                 </div>
 
                 <div id="status" class="status-indicator status-scanning">
-                    🔍 Scanning for DataMatrix barcodes...
+                    🔍 Scanning for barcodes...
                 </div>
 
                 <div id="barcode-info" class="barcode-info hidden">
-                    <h3>DataMatrix Detected!</h3>
+                    <h3>Barcode Detected!</h3>
                     <p id="barcode-data"></p>
+                </div>
+
+                <!-- Enhanced capture instructions -->
+                <div class="config-section" style="margin: 15px 0; padding: 10px; background: #e8f4fd;">
+                    <p style="color: #0c5460; font-size: 0.85rem; margin: 0;">
+                        💡 <strong>DataMatrix Tips:</strong> Use good lighting, hold device steady, ensure barcode fills viewfinder. 
+                        If auto-detection fails, use "Take Picture Now" button.
+                    </p>
                 </div>
 
                 <!-- Manual Capture Button -->
@@ -815,123 +824,7 @@
             }
         }
 
-        // Manual capture function - takes picture without barcode detection
-        async function manualCapture() {
-            console.log('Manual capture called, isScanning:', isScanning);
-            
-            if (!isScanning) {
-                // Check if camera stream exists
-                if (!currentStream) {
-                    alert('Camera is not active. Please start the camera first.');
-                    return;
-                }
-                
-                // Camera might be ready but scanning stopped, allow capture anyway
-                console.log('Camera stream exists, allowing manual capture');
-            }
-
-            try {
-                updateStatus('📸 Taking picture manually...', 'processing');
-                console.log('Manual capture initiated');
-                
-                // Temporarily stop scanning if it was active
-                const wasScanning = isScanning;
-                isScanning = false;
-                
-                // Show manual capture info
-                elements.barcodeInfo.classList.remove('hidden');
-                elements.barcodeData.textContent = 'Manual Capture - No barcode required';
-                
-                // Process without barcode
-                await processDocument(null, 'Manual Capture');
-                
-            } catch (error) {
-                console.error('Manual capture error:', error);
-                updateStatus(`❌ Manual capture failed: ${error.message}`, 'error');
-                // Resume scanning if it was active before
-                if (wasScanning) {
-                    isScanning = true;
-                    updateStatus('🔍 Scanning for DataMatrix barcodes...', 'scanning');
-                }
-            }
-        }
-
-        // Updated process function that handles both automatic and manual captures
-        async function processDocument(barcode, captureType) {
-            try {
-                updateStatus('📤 Processing document with Vantage...', 'processing');
-                console.log(`Processing document - Type: ${captureType}, Barcode: ${barcode || 'None'}`);
-                
-                // Capture image from camera
-                const imageBlob = await captureImage();
-                if (!imageBlob) {
-                    updateStatus('❌ Failed to capture image', 'error');
-                    return;
-                }
-
-                await processDocumentWithVantage(barcode, imageBlob, captureType);
-
-            } catch (error) {
-                console.error('Document processing error:', error);
-                updateStatus(`❌ Processing failed: ${error.message}`, 'error');
-            }
-        }
-
-        // Updated Vantage processing function
-        async function processDocumentWithVantage(barcode, imageBlob, captureType) {
-            try {
-                updateStatus('📤 Processing document with Vantage...', 'processing');
-                
-                // Authenticate with Vantage
-                if (!await authenticateWithVantage()) {
-                    return;
-                }
-
-                const transactionId = await createVantageTransaction();
-                console.log('Transaction created:', transactionId);
-
-                // Upload image
-                updateStatus('📸 Uploading document...', 'processing');
-                await uploadImageToVantage(transactionId, imageBlob);
-                console.log('Image uploaded successfully');
-
-                // Start processing
-                updateStatus('⚡ Starting document processing...', 'processing');
-                await startTransaction(transactionId);
-
-                // Show success with capture type info
-                showSuccess(transactionId, barcode, captureType);
-
-            } catch (error) {
-                console.error('Processing error:', error);
-                updateStatus(`❌ Processing failed: ${error.message}`, 'error');
-            }
-        }
-
-        // Update the original processBarcode function (for compatibility)
-        async function processBarcode(barcode) {
-            await processDocument(barcode, 'DataMatrix Auto-Detected');
-        }
-
-        // Show success screen
-        function showSuccess(transactionId, barcode, captureType) {
-            stopScanning();
-            elements.cameraSection.classList.add('hidden');
-            elements.successSection.classList.remove('hidden');
-            elements.transactionId.textContent = `Transaction ID: ${transactionId}`;
-            elements.resetBtn.classList.remove('hidden');
-            elements.startBtn.classList.add('hidden');
-        }
-
-        // Check if HTTPS is available
-        function checkHTTPS() {
-            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-                return false;
-            }
-            return true;
-        }
-
-        // Start scanning
+        // Start scanning with better DataMatrix detection
         async function startScanning() {
             if (!getConfig()) return;
 
@@ -955,84 +848,48 @@
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
                         facingMode: "environment",
-                        width: { ideal: 360 },
-                        height: { ideal: 300 }
+                        width: { ideal: 1280, min: 640 },
+                        height: { ideal: 720, min: 480 },
+                        focusMode: "continuous",
+                        whiteBalanceMode: "continuous"
                     } 
                 });
                 
                 currentStream = stream;
                 console.log('Camera stream obtained successfully');
 
-                // Initialize QuaggaJS with DataMatrix decoder
-                Quagga.init({
-                    inputStream: {
-                        name: "Live",
-                        type: "LiveStream",
-                        target: document.querySelector('#scanner-container'),
-                        constraints: {
-                            width: 360,
-                            height: 300,
-                            facingMode: "environment"
-                        }
-                    },
-                    decoder: {
-                        readers: ["datamatrix_reader"] // Changed from code_39_reader to datamatrix_reader
-                    },
-                    locate: true,
-                    halfSample: true,
-                    patchSize: "medium",
-                    frequency: 5 // Reduced frequency for better DataMatrix detection
-                }, function(err) {
-                    if (err) {
-                        console.error('QuaggaJS initialization error:', err);
-                        let errorMsg = 'Camera initialization failed';
-                        
-                        if (err.name === 'SecurityError') {
-                            errorMsg = 'Camera access denied. Please allow camera permission.';
-                        } else if (err.name === 'NotFoundError') {
-                            errorMsg = 'No camera found on this device.';
-                        } else if (err.name === 'NotAllowedError') {
-                            errorMsg = 'Camera permission denied by user.';
-                        }
-                        
-                        updateStatus(`❌ ${errorMsg}`, 'error');
-                        showTestMode();
-                        return;
-                    }
-                    console.log("QuaggaJS initialization finished. Ready to start");
-                    Quagga.start();
-                    isScanning = true; // Set scanning state to true
-                    updateStatus('🔍 Scanning for DataMatrix barcodes...', 'scanning');
+                // Create video element and canvas for better DataMatrix detection
+                const videoElement = document.createElement('video');
+                videoElement.srcObject = stream;
+                videoElement.setAttribute('playsinline', true);
+                videoElement.style.width = '100%';
+                videoElement.style.height = '100%';
+                videoElement.style.objectFit = 'cover';
+                
+                // Replace scanner container content
+                const scannerContainer = document.querySelector('#scanner-container');
+                scannerContainer.innerHTML = '';
+                scannerContainer.appendChild(videoElement);
+                
+                // Add overlay back
+                const overlay = document.createElement('div');
+                overlay.className = 'scanner-overlay';
+                overlay.innerHTML = '<div class="scanner-line"></div>';
+                scannerContainer.appendChild(overlay);
+                
+                videoElement.addEventListener('loadedmetadata', () => {
+                    videoElement.play();
+                    isScanning = true;
+                    updateStatus('🔍 Camera ready - Use "Take Picture" or try different DataMatrix readers', 'scanning');
                     
-                    // Show capture button when camera is ready
-                    if (elements.captureBtn) {
-                        elements.captureBtn.style.display = 'block';
-                    }
-                    
-                    console.log('Camera is now active, isScanning:', isScanning);
+                    // Show enhanced instructions
+                    setTimeout(() => {
+                        updateStatus('💡 DataMatrix detection tips: Use good lighting, hold steady, try "Take Picture" button', 'scanning');
+                    }, 3000);
                 });
 
-                // Handle DataMatrix detection
-                Quagga.onDetected(function(result) {
-                    if (!isScanning) return;
-                    
-                    const code = result.codeResult.code;
-                    console.log('DataMatrix detected:', code);
-                    
-                    // Show detected barcode
-                    elements.barcodeInfo.classList.remove('hidden');
-                    elements.barcodeData.textContent = code;
-                    updateStatus('✅ DataMatrix detected! Processing...', 'detected');
-                    
-                    // Stop scanning and process automatically
-                    isScanning = false;
-                    detectedBarcode = code;
-                    
-                    // Process the barcode after a short delay
-                    setTimeout(() => {
-                        processDocument(code, 'DataMatrix Auto-Detected');
-                    }, 1000);
-                });
+                // Try multiple barcode detection approaches
+                initializeMultipleDetectors(videoElement);
 
             } catch (error) {
                 console.error('Camera access error:', error);
@@ -1051,43 +908,225 @@
             }
         }
 
-        // Stop scanning
+        // Initialize ZXing DataMatrix detection
+        function initializeZXingDetection(videoElement) {
+            try {
+                const codeReader = new ZXing.BrowserMultiFormatReader();
+                
+                console.log('ZXing initialized, starting DataMatrix detection...');
+                
+                // Start continuous scanning
+                codeReader.decodeFromVideoDevice(null, videoElement, (result, err) => {
+                    if (result && isScanning) {
+                        console.log('ZXing detected barcode:', result.text);
+                        processDetectedCode(result.text, 'ZXing DataMatrix Detection');
+                    }
+                    if (err && !(err instanceof ZXing.NotFoundException)) {
+                        console.log('ZXing error (non-critical):', err);
+                    }
+                });
+                
+                // Store reader for cleanup
+                videoElement.zxingReader = codeReader;
+                
+            } catch (error) {
+                console.error('ZXing initialization failed:', error);
+            }
+        }
+
+        // Initialize multiple detection methods (updated to use ZXing properly)
+        function initializeMultipleDetectors(videoElement) {
+            // Method 1: ZXing DataMatrix detection (primary method)
+            if (typeof ZXing !== 'undefined') {
+                console.log('ZXing library detected, initializing DataMatrix detection...');
+                initializeZXingDetection(videoElement);
+            } else {
+                console.log('ZXing library not available');
+            }
+
+            // Method 2: Periodic manual analysis (fallback)
+            startPeriodicAnalysis(videoElement);
+            
+            // Note: Removed QuaggaJS since it doesn't support DataMatrix well
+        }
+
+        // Update stopScanning to clean up ZXing
         function stopScanning() {
             isScanning = false;
-            if (typeof Quagga !== 'undefined') {
-                Quagga.stop();
-            }
             
-            // Stop camera stream
             if (currentStream) {
                 currentStream.getTracks().forEach(track => track.stop());
                 currentStream = null;
             }
             
-            elements.startBtn.classList.remove('hidden');
-            elements.stopBtn.classList.add('hidden');
+            // Clean up ZXing reader
+            const video = document.querySelector('video');
+            if (video && video.zxingReader) {
+                try {
+                    video.zxingReader.reset();
+                } catch (e) {
+                    console.log('ZXing cleanup error:', e);
+                }
+            }
+            
+            // Clean up Quagga if it was initialized
+            if (typeof Quagga !== 'undefined') {
+                try {
+                    Quagga.stop();
+                } catch (e) {
+                    console.log('Quagga cleanup error:', e);
+                }
+            }
+            
             elements.configSection.classList.remove('hidden');
             elements.cameraSection.classList.add('hidden');
             elements.testSection.classList.add('hidden');
-        }
-
-        // Reset application
-        function resetApp() {
-            stopScanning();
-            elements.successSection.classList.add('hidden');
-            elements.configSection.classList.remove('hidden');
-            elements.testSection.classList.add('hidden');
-            elements.barcodeInfo.classList.add('hidden');
-            elements.resetBtn.classList.add('hidden');
             elements.startBtn.classList.remove('hidden');
-            detectedBarcode = null;
-            accessToken = '';
-            updateStatus('📱 Configure settings and start camera', 'scanning');
+            elements.stopBtn.classList.add('hidden');
+            elements.resetBtn.classList.add('hidden');
+            elements.barcodeInfo.classList.add('hidden');
+            
+            updateStatus('📱 Ready to scan', 'scanning');
         }
 
-        // Initialize app
-        console.log('DataMatrix Document Scanner App initialized');
-        updateStatus('📱 Configure settings and start camera', 'scanning');
+        // Add missing checkHTTPS function
+        function checkHTTPS() {
+            return location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        }
+
+        // Add missing processDocument function
+        async function processDocument(barcode, detectionMethod) {
+            try {
+                updateStatus('🔐 Authenticating with Vantage...', 'processing');
+                
+                // Authenticate first
+                const authSuccess = await authenticateWithVantage();
+                if (!authSuccess) {
+                    throw new Error('Authentication failed');
+                }
+                
+                updateStatus('📋 Creating transaction...', 'processing');
+                
+                // Create transaction
+                const transactionId = await createVantageTransaction();
+                
+                updateStatus('📸 Capturing and uploading image...', 'processing');
+                
+                // Capture image
+                const imageBlob = await captureImage();
+                if (!imageBlob) {
+                    throw new Error('Failed to capture image');
+                }
+                
+                // Upload image
+                await uploadImageToVantage(transactionId, imageBlob);
+                
+                updateStatus('⚡ Starting processing...', 'processing');
+                
+                // Start processing
+                await startTransaction(transactionId);
+                
+                // Show success
+                elements.cameraSection.classList.add('hidden');
+                elements.successSection.classList.remove('hidden');
+                elements.resetBtn.classList.remove('hidden');
+                
+                elements.transactionId.textContent = `Transaction ID: ${transactionId}`;
+                if (barcode) {
+                    elements.transactionId.textContent += `\nBarcode: ${barcode}`;
+                }
+                elements.transactionId.textContent += `\nDetection: ${detectionMethod}`;
+                
+                updateStatus('✅ Document sent successfully!', 'success');
+                
+            } catch (error) {
+                console.error('Document processing error:', error);
+                updateStatus(`❌ Processing failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Add missing processDocumentWithVantage function (alias)
+        async function processDocumentWithVantage(barcode, imageBlob, detectionMethod) {
+            try {
+                updateStatus('🔐 Authenticating with Vantage...', 'processing');
+                
+                // Authenticate first
+                const authSuccess = await authenticateWithVantage();
+                if (!authSuccess) {
+                    throw new Error('Authentication failed');
+                }
+                
+                updateStatus('📋 Creating transaction...', 'processing');
+                
+                // Create transaction
+                const transactionId = await createVantageTransaction();
+                
+                updateStatus('📸 Uploading image...', 'processing');
+                
+                // Upload image
+                await uploadImageToVantage(transactionId, imageBlob);
+                
+                updateStatus('⚡ Starting processing...', 'processing');
+                
+                // Start processing
+                await startTransaction(transactionId);
+                
+                // Show success
+                elements.cameraSection.classList.add('hidden');
+                elements.testSection.classList.add('hidden');
+                elements.successSection.classList.remove('hidden');
+                elements.resetBtn.classList.remove('hidden');
+                
+                elements.transactionId.textContent = `Transaction ID: ${transactionId}`;
+                if (barcode) {
+                    elements.transactionId.textContent += `\nBarcode: ${barcode}`;
+                }
+                elements.transactionId.textContent += `\nDetection: ${detectionMethod}`;
+                
+                updateStatus('✅ Document sent successfully!', 'success');
+                
+            } catch (error) {
+                console.error('Document processing error:', error);
+                updateStatus(`❌ Processing failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Add missing resetApp function
+        function resetApp() {
+            // Stop any ongoing scanning
+            stopScanning();
+            
+            // Reset all form values
+            elements.baseUrl.value = '';
+            elements.clientId.value = '';
+            elements.clientSecret.value = '';
+            elements.skillId.value = '';
+            elements.testBarcode.value = 'TESTDM123';
+            
+            // Reset global variables
+            isScanning = false;
+            accessToken = '';
+            detectedBarcode = null;
+            currentStream = null;
+            
+            // Reset UI state
+            elements.configSection.classList.remove('hidden');
+            elements.cameraSection.classList.add('hidden');
+            elements.testSection.classList.add('hidden');
+            elements.successSection.classList.add('hidden');
+            elements.startBtn.classList.remove('hidden');
+            elements.stopBtn.classList.add('hidden');
+            elements.resetBtn.classList.add('hidden');
+            elements.barcodeInfo.classList.add('hidden');
+            
+            // Clear connection test result
+            const resultDiv = document.getElementById('connection-result');
+            if (resultDiv) {
+                resultDiv.classList.add('hidden');
+            }
+            
+            updateStatus('📱 Ready to configure', 'scanning');
+        }
     </script>
 </body>
 </html>
