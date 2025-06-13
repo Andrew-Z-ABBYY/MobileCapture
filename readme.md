@@ -2,6 +2,12 @@
 
 A pure web-based mobile application for scanning DataMatrix barcodes and processing documents through Vantage Cloud. Built with vanilla JavaScript and the ZXing library for reliable barcode detection, this app can run on any mobile device with a modern browser. The application allows you to capture photos and send them to Vantage skills for processing, automatically detecting DataMatrix barcodes in the live video feed and taking photos automatically when a DataMatrix is present, while providing a manual capture button for users to explicitly take photos when no barcode is detected.
 
+## 🎥 Demo Video
+
+**📹 [Watch the Demo Video](https://www.loom.com/share/6eb5e99105704dfc936ba5cac8e24245?sid=8fa990db-c8b7-4d7b-b222-6d521585313d)**
+
+See the application in action - barcode detection, automatic photo capture, and Vantage integration.
+
 ## ✨ Features
 
 - **Universal Compatibility**: Pure web-based app runs on any mobile device
