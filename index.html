@@ -990,14 +990,23 @@
             await processDocument(barcode, 'DataMatrix Auto-Detected');
         }
 
-        // Show success screen
-        function showSuccess(transactionId, barcode, captureType) {
-            stopScanning();
-            elements.cameraSection.classList.add('hidden');
-            elements.successSection.classList.remove('hidden');
-            elements.transactionId.textContent = `Transaction ID: ${transactionId}`;
-            elements.resetBtn.classList.remove('hidden');
-            elements.startBtn.classList.add('hidden');
+        // Helper function to delete test transactions
+        async function deleteVantageTransaction(transactionId) {
+            const response = await fetch(`${config.baseUrl}/api/publicapi/v1/transactions/${transactionId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Accept': '*/*'
+                },
+                mode: 'cors',
+                credentials: 'omit'
+            });
+            
+            if (!response.ok && response.status !== 404) {
+                throw new Error(`Failed to delete transaction: ${response.status}`);
+            }
+            
+            return true;
         }
 
         // Check if HTTPS is available
@@ -1038,6 +1047,7 @@
                 });
                 
                 currentStream = stream;
+                console.log('Camera stream obtained successfully');
 
                 // Initialize QuaggaJS with DataMatrix decoder
                 Quagga.init({
@@ -1077,11 +1087,15 @@
                     }
                     console.log("QuaggaJS initialization finished. Ready to start");
                     Quagga.start();
-                    isScanning = true;
+                    isScanning = true; // Set scanning state to true
                     updateStatus('🔍 Scanning for DataMatrix barcodes...', 'scanning');
                     
                     // Show capture button when camera is ready
-                    elements.captureBtn.style.display = 'block';
+                    if (elements.captureBtn) {
+                        elements.captureBtn.style.display = 'block';
+                    }
+                    
+                    console.log('Camera is now active, isScanning:', isScanning);
                 });
 
                 // Handle DataMatrix detection
@@ -1125,16 +1139,24 @@
 
         // Manual capture function - takes picture without barcode detection
         async function manualCapture() {
+            console.log('Manual capture called, isScanning:', isScanning);
+            
             if (!isScanning) {
-                alert('Camera is not active. Please start the camera first.');
-                return;
+                // Check if camera stream exists
+                if (!currentStream) {
+                    alert('Camera is not active. Please start the camera first.');
+                    return;
+                }
+                
+                // Camera might be ready but scanning stopped, allow capture anyway
+                console.log('Camera stream exists, allowing manual capture');
             }
 
             try {
                 updateStatus('📸 Taking picture manually...', 'processing');
                 console.log('Manual capture initiated');
                 
-                // Stop scanning temporarily
+                // Temporarily stop scanning if it was active
                 const wasScanning = isScanning;
                 isScanning = false;
                 
@@ -1148,8 +1170,11 @@
             } catch (error) {
                 console.error('Manual capture error:', error);
                 updateStatus(`❌ Manual capture failed: ${error.message}`, 'error');
-                // Resume scanning if it was active
-                isScanning = true;
+                // Resume scanning if it was active before
+                if (wasScanning) {
+                    isScanning = true;
+                    updateStatus('🔍 Scanning for DataMatrix barcodes...', 'scanning');
+                }
             }
         }
 
