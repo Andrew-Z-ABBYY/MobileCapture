@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barcode Scanner & Document Processor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .app-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            max-width: 400px;
+            width: 90%;
+            min-height: 600px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .main-content {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .camera-container {
+            position: relative;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        #camera-feed {
+            width: 100%;
+            height: 300px;
+            object-fit: cover;
+        }
+
+        #scanner-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .scanner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid #4facfe;
+            border-radius: 15px;
+            background: rgba(79, 172, 254, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .scanner-line {
+            width: 80%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #4facfe, transparent);
+            animation: scan 2s ease-in-out infinite;
+        }
+
+        @keyframes scan {
+            0%, 100% { transform: translateY(-50px); opacity: 0; }
+            50% { transform: translateY(0); opacity: 1; }
+        }
+
+        .status-indicator {
+            padding: 12px 20px;
+            border-radius: 25px;
+            margin: 15px 0;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .status-scanning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status-detected {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            animation: pulse 1s ease-in-out;
+        }
+
+        .status-processing {
+            background: #e2e3e5;
+            color: #495057;
+            border: 1px solid #ced4da;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .barcode-info {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #4facfe;
+        }
+
+        .barcode-info h3 {
+            color: #495057;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .barcode-info p {
+            color: #6c757d;
+            font-size: 0.8rem;
+            font-family: monospace;
+            word-break: break-all;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .btn-secondary:hover {
+            background: #dee2e6;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .config-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .config-section h3 {
+            color: #495057;
+            font-size: 1rem;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            color: #495057;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #4facfe;
+            box-shadow: 0 0 0 2px rgba(79, 172, 254, 0.2);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .success-screen {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .success-icon {
+            font-size: 4rem;
+            color: #28a745;
+            margin-bottom: 20px;
+        }
+
+        .success-screen h2 {
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+
+        .success-screen p {
+            color: #6c757d;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 480px) {
+            .app-container {
+                width: 95%;
+                margin: 10px;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <h1>📱 Document Scanner</h1>
+            <p>Scan Code 39 barcodes and process documents</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Configuration Section -->
+            <div class="config-section" id="config-section">
+                <h3>⚙️ Vantage Configuration</h3>
+                <div class="form-group">
+                    <label for="base-url">Base URL</label>
+                    <input type="text" id="base-url" placeholder="https://your-vantage-server.com" value="">
+                </div>
+                <div class="form-group">
+                    <label for="client-id">Client ID</label>
+                    <input type="text" id="client-id" placeholder="your-client-id" value="">
+                </div>
+                <div class="form-group">
+                    <label for="client-secret">Client Secret</label>
+                    <input type="password" id="client-secret" placeholder="your-client-secret" value="">
+                </div>
+                <div class="form-group">
+                    <label for="skill-id">Skill ID</label>
+                    <input type="text" id="skill-id" placeholder="your-skill-id" value="">
+                </div>
+            </div>
+
+            <!-- Test Connection Section -->
+            <div class="config-section">
+                <h3>🔍 Connection Test</h3>
+                <p style="color: #6c757d; font-size: 0.9rem; margin-bottom: 15px;">
+                    Test your server connection before scanning:
+                </p>
+                <button id="test-connection-btn" class="btn-secondary" onclick="testConnection()" style="width: 100%;">
+                    🌐 Test Connection
+                </button>
+                <div id="connection-result" class="status-indicator hidden" style="margin-top: 10px; font-size: 0.8rem;"></div>
+            </div>
+
+            <!-- Test Mode Section -->
+            <div id="test-section" class="config-section hidden">
+                <h3>🧪 Test Mode (No Camera Required)</h3>
+                <p style="color: #6c757d; font-size: 0.9rem; margin-bottom: 15px;">
+                    For testing without camera access, enter a barcode manually:
+                </p>
+                <div class="form-group">
+                    <label for="test-barcode">Test Barcode (Code 39)</label>
+                    <input type="text" id="test-barcode" placeholder="Enter barcode value (e.g., HELLO123)" value="TEST123">
+                </div>
+                <button class="btn-primary" onclick="processTestBarcode()" style="width: 100%; margin-top: 10px;">
+                    🚀 Process Test Barcode
+                </button>
+            </div>
+
+            <!-- Camera Section -->
+            <div id="camera-section" class="hidden">
+                <div class="camera-container">
+                    <div id="scanner-container">
+                        <div class="scanner-overlay">
+                            <div class="scanner-line"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="status" class="status-indicator status-scanning">
+                    🔍 Scanning for Code 39 barcodes...
+                </div>
+
+                <div id="barcode-info" class="barcode-info hidden">
+                    <h3>Barcode Detected!</h3>
+                    <p id="barcode-data"></p>
+                </div>
+            </div>
+
+            <!-- Success Section -->
+            <div id="success-section" class="success-screen hidden">
+                <div class="success-icon">✅</div>
+                <h2>Document Processed Successfully!</h2>
+                <p>Your document has been sent to Vantage for processing.</p>
+                <div id="transaction-info" class="barcode-info">
+                    <h3>Transaction Details</h3>
+                    <p id="transaction-id"></p>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="controls">
+                <button id="start-btn" class="btn-primary" onclick="startScanning()">
+                    📷 Start Camera
+                </button>
+                <button id="stop-btn" class="btn-secondary hidden" onclick="stopScanning()">
+                    ⏹️ Stop
+                </button>
+                <button id="reset-btn" class="btn-danger hidden" onclick="resetApp()">
+                    🔄 Reset
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let isScanning = false;
+        let accessToken = '';
+        let detectedBarcode = null;
+        let currentStream = null;
+
+        // Configuration
+        const config = {
+            baseUrl: '',
+            clientId: '',
+            clientSecret: '',
+            skillId: ''
+        };
+
+        // DOM elements
+        const elements = {
+            configSection: document.getElementById('config-section'),
+            cameraSection: document.getElementById('camera-section'),
+            testSection: document.getElementById('test-section'),
+            successSection: document.getElementById('success-section'),
+            status: document.getElementById('status'),
+            barcodeInfo: document.getElementById('barcode-info'),
+            barcodeData: document.getElementById('barcode-data'),
+            transactionInfo: document.getElementById('transaction-info'),
+            transactionId: document.getElementById('transaction-id'),
+            startBtn: document.getElementById('start-btn'),
+            stopBtn: document.getElementById('stop-btn'),
+            resetBtn: document.getElementById('reset-btn'),
+            baseUrl: document.getElementById('base-url'),
+            clientId: document.getElementById('client-id'),
+            clientSecret: document.getElementById('client-secret'),
+            skillId: document.getElementById('skill-id'),
+            testBarcode: document.getElementById('test-barcode')
+        };
+
+        // Update status display
+        function updateStatus(message, type = 'scanning') {
+            elements.status.textContent = message;
+            elements.status.className = `status-indicator status-${type}`;
+        }
+
+        // Get configuration from form
+        function getConfig() {
+            config.baseUrl = elements.baseUrl.value.trim();
+            config.clientId = elements.clientId.value.trim();
+            config.clientSecret = elements.clientSecret.value.trim();
+            config.skillId = elements.skillId.value.trim();
+
+            if (!config.baseUrl || !config.clientId || !config.clientSecret || !config.skillId) {
+                alert('Please fill in all configuration fields');
+                return false;
+            }
+            return true;
+        }
+
+        // Test server connection
+        async function testConnection() {
+            if (!getConfig()) return;
+            
+            const testBtn = document.getElementById('test-connection-btn');
+            const resultDiv = document.getElementById('connection-result');
+            
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<span class="loading-spinner"></span>Testing...';
+            resultDiv.classList.remove('hidden');
+            resultDiv.className = 'status-indicator status-processing';
+            resultDiv.textContent = 'Testing connection...';
+            
+            try {
+                // Test 1: Basic connectivity
+                resultDiv.textContent = '🌐 Testing basic connectivity...';
+                const basicUrl = `${config.baseUrl}/auth2/connect/token`;
+                
+                console.log('Testing connection to:', basicUrl);
+                
+                const response = await fetch(basicUrl, {
+                    method: 'HEAD', // Just check if server responds
+                    mode: 'cors',
+                    credentials: 'omit'
+                });
+                
+                console.log('Basic connectivity test - Status:', response.status);
+                
+                // Test 2: Authentication
+                resultDiv.textContent = '🔐 Testing authentication...';
+                const authSuccess = await authenticateWithVantage();
+                
+                if (authSuccess) {
+                    resultDiv.className = 'status-indicator status-success';
+                    resultDiv.textContent = '✅ Connection successful! Authentication working.';
+                } else {
+                    resultDiv.className = 'status-indicator status-error';
+                    resultDiv.textContent = '❌ Connection failed during authentication.';
+                }
+                
+            } catch (error) {
+                console.error('Connection test error:', error);
+                resultDiv.className = 'status-indicator status-error';
+                
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    resultDiv.innerHTML = `❌ Cannot reach server<br><small>• Check server URL: ${config.baseUrl}<br>• Verify server is running<br>• Check network connectivity</small>`;
+                } else {
+                    resultDiv.textContent = `❌ Connection test failed: ${error.message}`;
+                }
+            } finally {
+                testBtn.disabled = false;
+                testBtn.innerHTML = '🌐 Test Connection';
+            }
+        }
+
+        // Authenticate with Vantage
+        async function authenticateWithVantage() {
+            try {
+                updateStatus('🔐 Authenticating with Vantage...', 'processing');
+                
+                console.log('Attempting authentication with:', config.baseUrl);
+                
+                const tokenUrl = `${config.baseUrl}/auth2/connect/token`;
+                console.log('Token URL:', tokenUrl);
+
+                const requestBody = new URLSearchParams({
+                    grant_type: 'client_credentials',
+                    client_id: config.clientId,
+                    client_secret: config.clientSecret,
+                    scope: 'global.wildcard permissions openid'
+                });
+
+                console.log('Request body (client_secret hidden):', {
+                    grant_type: 'client_credentials',
+                    client_id: config.clientId,
+                    client_secret: '[HIDDEN]',
+                    scope: 'global.wildcard permissions openid'
+                });
+
+                const response = await fetch(tokenUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept': 'application/json'
+                    },
+                    body: requestBody,
+                    mode: 'cors', // Explicitly set CORS mode
+                    credentials: 'omit' // Don't send cookies
+                });
+
+                console.log('Response status:', response.status);
+                console.log('Response headers:', [...response.headers.entries()]);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Error response body:', errorText);
+                    throw new Error(`Authentication failed: ${response.status} ${response.statusText}. Response: ${errorText}`);
+                }
+
+                const data = await response.json();
+                accessToken = data.access_token;
+                
+                console.log('Authentication successful');
+                console.log('Token received (length):', accessToken.length);
+                console.log('Token type:', data.token_type);
+                console.log('Expires in:', data.expires_in);
+                
+                return true;
+            } catch (error) {
+                console.error('Authentication error details:', error);
+                
+                let errorMessage = 'Authentication failed';
+                let suggestion = '';
+                
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Network connection failed';
+                    suggestion = 'Check: 1) Server URL is correct, 2) Server is running, 3) CORS is enabled on server, 4) Network connectivity';
+                } else if (error.message.includes('CORS')) {
+                    errorMessage = 'CORS policy blocked the request';
+                    suggestion = 'Server must allow cross-origin requests from this domain';
+                } else if (error.message.includes('DNS')) {
+                    errorMessage = 'Could not resolve server address';
+                    suggestion = 'Check if the server URL is correct and accessible';
+                } else {
+                    errorMessage = error.message;
+                }
+                
+                updateStatus(`❌ ${errorMessage}`, 'error');
+                
+                if (suggestion) {
+                    console.log('💡 Suggestion:', suggestion);
+                    // Show suggestion to user
+                    setTimeout(() => {
+                        alert(`Authentication failed!\n\n${errorMessage}\n\nSuggestion: ${suggestion}`);
+                    }, 100);
+                }
+                
+                return false;
+            }
+        }
+
+        // Create Vantage transaction
+        async function createVantageTransaction() {
+            try {
+                console.log('Creating transaction with skill ID:', config.skillId);
+                
+                const createUrl = `${config.baseUrl}/api/publicapi/v1/transactions`;
+                console.log('Transaction URL:', createUrl);
+                
+                const requestBody = JSON.stringify({
+                    skillId: config.skillId
+                });
+                
+                console.log('Transaction request body:', requestBody);
+
+                const response = await fetch(createUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Accept': 'application/json'
+                    },
+                    body: requestBody,
+                    mode: 'cors',
+                    credentials: 'omit'
+                });
+
+                console.log('Transaction response status:', response.status);
+                console.log('Transaction response headers:', [...response.headers.entries()]);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Transaction error response:', errorText);
+                    throw new Error(`Transaction creation failed: ${response.status} ${response.statusText}. Response: ${errorText}`);
+                }
+
+                const data = await response.json();
+                console.log('Transaction created successfully:', data);
+                return data.transactionId;
+            } catch (error) {
+                console.error('Transaction creation error:', error);
+                
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    throw new Error('Network error creating transaction. Check server connectivity.');
+                }
+                
+                throw error;
+            }
+        }
+
+        // Upload image to Vantage
+        async function uploadImageToVantage(transactionId, imageBlob) {
+            try {
+                const formData = new FormData();
+                
+                // Add model configuration
+                const modelData = {
+                    files: [{
+                        index: 0,
+                        imageProcessingOptions: {
+                            autoCrop: "No",
+                            autoOrientation: "No"
+                        },
+                        registrationParameters: []
+                    }]
+                };
+                formData.append('Model', JSON.stringify(modelData));
+                
+                // Add image file
+                formData.append('Files', imageBlob, 'captured_image.jpg');
+
+                const response = await fetch(`${config.baseUrl}/api/publicapi/v1/transactions/${transactionId}/files`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`File upload failed: ${response.status}`);
+                }
+
+                return true;
+            } catch (error) {
+                console.error('Upload error:', error);
+                throw error;
+            }
+        }
+
+        // Start transaction processing
+        async function startTransaction(transactionId) {
+            try {
+                const response = await fetch(`${config.baseUrl}/api/publicapi/v1/transactions/${transactionId}/start`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Transaction start failed: ${response.status}`);
+                }
+
+                return true;
+            } catch (error) {
+                console.error('Transaction start error:', error);
+                throw error;
+            }
+        }
+
+        // Capture image from video stream
+        function captureImage() {
+            const video = document.querySelector('video');
+            if (!video) return null;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+            
+            return new Promise(resolve => {
+                canvas.toBlob(resolve, 'image/jpeg', 0.8);
+            });
+        }
+
+        // Show test mode when camera is not available
+        function showTestMode() {
+            elements.testSection.classList.remove('hidden');
+            elements.cameraSection.classList.add('hidden');
+            elements.startBtn.classList.remove('hidden');
+            elements.stopBtn.classList.add('hidden');
+        }
+
+        // Process test barcode without camera
+        async function processTestBarcode() {
+            const testBarcode = elements.testBarcode.value.trim();
+            if (!testBarcode) {
+                alert('Please enter a test barcode value');
+                return;
+            }
+
+            if (!getConfig()) return;
+
+            try {
+                // Show barcode info
+                elements.barcodeInfo.classList.remove('hidden');
+                elements.barcodeData.textContent = testBarcode;
+                updateStatus('✅ Test barcode entered! Processing...', 'detected');
+
+                // Create a test image (1x1 pixel JPEG)
+                const canvas = document.createElement('canvas');
+                canvas.width = 1;
+                canvas.height = 1;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, 1, 1);
+                
+                const imageBlob = await new Promise(resolve => {
+                    canvas.toBlob(resolve, 'image/jpeg', 0.8);
+                });
+
+                // Process with Vantage
+                await processDocumentWithVantage(testBarcode, imageBlob);
+
+            } catch (error) {
+                console.error('Test processing error:', error);
+                updateStatus(`❌ Test processing failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Separate function for document processing
+        async function processDocumentWithVantage(barcode, imageBlob) {
+            try {
+                updateStatus('📤 Processing document with Vantage...', 'processing');
+                
+                // Authenticate with Vantage
+                if (!await authenticateWithVantage()) {
+                    return;
+                }
+
+                // Create transaction
+                updateStatus('🔄 Creating transaction...', 'processing');
+                const transactionId = await createVantageTransaction();
+                console.log('Transaction created:', transactionId);
+
+                // Upload image
+                updateStatus('📸 Uploading document...', 'processing');
+                await uploadImageToVantage(transactionId, imageBlob);
+                console.log('Image uploaded successfully');
+
+                // Start processing
+                updateStatus('⚡ Starting document processing...', 'processing');
+                await startTransaction(transactionId);
+
+                // Show success
+                showSuccess(transactionId, barcode);
+
+            } catch (error) {
+                console.error('Processing error:', error);
+                updateStatus(`❌ Processing failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Update the original processBarcode function
+        async function processBarcode(barcode) {
+            // Capture image from camera
+            const imageBlob = await captureImage();
+            if (!imageBlob) {
+                updateStatus('❌ Failed to capture image', 'error');
+                return;
+            }
+
+            await processDocumentWithVantage(barcode, imageBlob);
+        }
+
+        // Show success screen
+        function showSuccess(transactionId, barcode) {
+            stopScanning();
+            elements.cameraSection.classList.add('hidden');
+            elements.successSection.classList.remove('hidden');
+            elements.transactionId.textContent = `Transaction ID: ${transactionId}`;
+            elements.resetBtn.classList.remove('hidden');
+            elements.startBtn.classList.add('hidden');
+        }
+
+        // Check if HTTPS is available
+        function checkHTTPS() {
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                return false;
+            }
+            return true;
+        }
+
+        // Start scanning
+        async function startScanning() {
+            if (!getConfig()) return;
+
+            // Check for HTTPS requirement
+            if (!checkHTTPS()) {
+                updateStatus('❌ HTTPS required for camera access', 'error');
+                alert('Camera access requires HTTPS. Please:\n\n1. Host this file on an HTTPS server, or\n2. Use localhost for testing, or\n3. Use the test mode below');
+                showTestMode();
+                return;
+            }
+
+            try {
+                elements.configSection.classList.add('hidden');
+                elements.cameraSection.classList.remove('hidden');
+                elements.startBtn.classList.add('hidden');
+                elements.stopBtn.classList.remove('hidden');
+
+                // Test camera access first
+                updateStatus('🔐 Requesting camera permission...', 'processing');
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: "environment",
+                        width: { ideal: 360 },
+                        height: { ideal: 300 }
+                    } 
+                });
+                
+                currentStream = stream;
+
+                // Initialize QuaggaJS with better error handling
+                Quagga.init({
+                    inputStream: {
+                        name: "Live",
+                        type: "LiveStream",
+                        target: document.querySelector('#scanner-container'),
+                        constraints: {
+                            width: 360,
+                            height: 300,
+                            facingMode: "environment"
+                        }
+                    },
+                    decoder: {
+                        readers: ["code_39_reader"]
+                    },
+                    locate: true,
+                    halfSample: true,
+                    patchSize: "medium",
+                    frequency: 10
+                }, function(err) {
+                    if (err) {
+                        console.error('QuaggaJS initialization error:', err);
+                        let errorMsg = 'Camera initialization failed';
+                        
+                        if (err.name === 'SecurityError') {
+                            errorMsg = 'Camera access denied. Please allow camera permission.';
+                        } else if (err.name === 'NotFoundError') {
+                            errorMsg = 'No camera found on this device.';
+                        } else if (err.name === 'NotAllowedError') {
+                            errorMsg = 'Camera permission denied by user.';
+                        }
+                        
+                        updateStatus(`❌ ${errorMsg}`, 'error');
+                        showTestMode();
+                        return;
+                    }
+                    console.log("QuaggaJS initialization finished. Ready to start");
+                    Quagga.start();
+                    isScanning = true;
+                    updateStatus('🔍 Scanning for Code 39 barcodes...', 'scanning');
+                });
+
+                // Handle barcode detection
+                Quagga.onDetected(function(result) {
+                    if (!isScanning) return;
+                    
+                    const code = result.codeResult.code;
+                    console.log('Barcode detected:', code);
+                    
+                    // Show detected barcode
+                    elements.barcodeInfo.classList.remove('hidden');
+                    elements.barcodeData.textContent = code;
+                    updateStatus('✅ Barcode detected! Processing...', 'detected');
+                    
+                    // Stop scanning and process
+                    isScanning = false;
+                    detectedBarcode = code;
+                    
+                    // Process the barcode after a short delay
+                    setTimeout(() => {
+                        processBarcode(code);
+                    }, 1000);
+                });
+
+            } catch (error) {
+                console.error('Camera access error:', error);
+                let errorMsg = 'Camera access failed';
+                
+                if (error.name === 'NotAllowedError') {
+                    errorMsg = 'Camera permission denied. Please allow camera access.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMsg = 'No camera found on this device.';
+                } else if (error.name === 'SecurityError') {
+                    errorMsg = 'Camera access requires HTTPS or localhost.';
+                }
+                
+                updateStatus(`❌ ${errorMsg}`, 'error');
+                showTestMode();
+            }
+        }
+
+        // Stop scanning
+        function stopScanning() {
+            isScanning = false;
+            if (typeof Quagga !== 'undefined') {
+                Quagga.stop();
+            }
+            
+            // Stop camera stream
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+            
+            elements.startBtn.classList.remove('hidden');
+            elements.stopBtn.classList.add('hidden');
+            elements.configSection.classList.remove('hidden');
+            elements.cameraSection.classList.add('hidden');
+            elements.testSection.classList.add('hidden');
+        }
+
+        // Reset application
+        function resetApp() {
+            stopScanning();
+            elements.successSection.classList.add('hidden');
+            elements.configSection.classList.remove('hidden');
+            elements.testSection.classList.add('hidden');
+            elements.barcodeInfo.classList.add('hidden');
+            elements.resetBtn.classList.add('hidden');
+            elements.startBtn.classList.remove('hidden');
+            detectedBarcode = null;
+            accessToken = '';
+            updateStatus('📱 Configure settings and start camera', 'scanning');
+        }
+
+        // Initialize app
+        console.log('Barcode Scanner App initialized');
+        updateStatus('📱 Configure settings and start camera', 'scanning');
+    </script>
+</body>
+</html>
