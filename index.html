@@ -319,7 +319,7 @@
     <div class="app-container">
         <div class="header">
             <h1>📱 Document Scanner</h1>
-            <p>Scan Code 39 barcodes and process documents</p>
+            <p>Scan DataMatrix barcodes and process documents</p>
         </div>
 
         <div class="main-content">
@@ -361,8 +361,8 @@
                     For testing without camera access, enter a barcode manually:
                 </p>
                 <div class="form-group">
-                    <label for="test-barcode">Test Barcode (Code 39)</label>
-                    <input type="text" id="test-barcode" placeholder="Enter barcode value (e.g., HELLO123)" value="TEST123">
+                    <label for="test-barcode">Test Barcode (DataMatrix)</label>
+                    <input type="text" id="test-barcode" placeholder="Enter barcode value (e.g., DM123456)" value="TESTDM123">
                 </div>
                 <button class="btn-primary" onclick="processTestBarcode()" style="width: 100%; margin-top: 10px;">
                     🚀 Process Test Barcode
@@ -378,12 +378,19 @@
                 </div>
 
                 <div id="status" class="status-indicator status-scanning">
-                    🔍 Scanning for Code 39 barcodes...
+                    🔍 Scanning for DataMatrix barcodes...
                 </div>
 
                 <div id="barcode-info" class="barcode-info hidden">
-                    <h3>Barcode Detected!</h3>
+                    <h3>DataMatrix Detected!</h3>
                     <p id="barcode-data"></p>
+                </div>
+
+                <!-- Manual Capture Button -->
+                <div class="controls" style="margin: 15px 0;">
+                    <button id="capture-btn" class="btn-primary" onclick="manualCapture()" style="width: 100%;">
+                        📸 Take Picture Now
+                    </button>
                 </div>
             </div>
 
@@ -442,6 +449,7 @@
             startBtn: document.getElementById('start-btn'),
             stopBtn: document.getElementById('stop-btn'),
             resetBtn: document.getElementById('reset-btn'),
+            captureBtn: document.getElementById('capture-btn'),
             baseUrl: document.getElementById('base-url'),
             clientId: document.getElementById('client-id'),
             clientSecret: document.getElementById('client-secret'),
@@ -921,7 +929,7 @@
                 // Show barcode info
                 elements.barcodeInfo.classList.remove('hidden');
                 elements.barcodeData.textContent = testBarcode;
-                updateStatus('✅ Test barcode entered! Processing...', 'detected');
+                updateStatus('✅ Test DataMatrix entered! Processing...', 'detected');
 
                 // Create a test image (1x1 pixel JPEG)
                 const canvas = document.createElement('canvas');
@@ -936,7 +944,7 @@
                 });
 
                 // Process with Vantage
-                await processDocumentWithVantage(testBarcode, imageBlob);
+                await processDocumentWithVantage(testBarcode, imageBlob, 'Test Mode');
 
             } catch (error) {
                 console.error('Test processing error:', error);
@@ -977,20 +985,13 @@
             }
         }
 
-        // Update the original processBarcode function
+        // Update the original processBarcode function (for compatibility)
         async function processBarcode(barcode) {
-            // Capture image from camera
-            const imageBlob = await captureImage();
-            if (!imageBlob) {
-                updateStatus('❌ Failed to capture image', 'error');
-                return;
-            }
-
-            await processDocumentWithVantage(barcode, imageBlob);
+            await processDocument(barcode, 'DataMatrix Auto-Detected');
         }
 
         // Show success screen
-        function showSuccess(transactionId, barcode) {
+        function showSuccess(transactionId, barcode, captureType) {
             stopScanning();
             elements.cameraSection.classList.add('hidden');
             elements.successSection.classList.remove('hidden');
@@ -1038,7 +1039,7 @@
                 
                 currentStream = stream;
 
-                // Initialize QuaggaJS with better error handling
+                // Initialize QuaggaJS with DataMatrix decoder
                 Quagga.init({
                     inputStream: {
                         name: "Live",
@@ -1051,12 +1052,12 @@
                         }
                     },
                     decoder: {
-                        readers: ["code_39_reader"]
+                        readers: ["datamatrix_reader"] // Changed from code_39_reader to datamatrix_reader
                     },
                     locate: true,
                     halfSample: true,
                     patchSize: "medium",
-                    frequency: 10
+                    frequency: 5 // Reduced frequency for better DataMatrix detection
                 }, function(err) {
                     if (err) {
                         console.error('QuaggaJS initialization error:', err);
@@ -1077,28 +1078,31 @@
                     console.log("QuaggaJS initialization finished. Ready to start");
                     Quagga.start();
                     isScanning = true;
-                    updateStatus('🔍 Scanning for Code 39 barcodes...', 'scanning');
+                    updateStatus('🔍 Scanning for DataMatrix barcodes...', 'scanning');
+                    
+                    // Show capture button when camera is ready
+                    elements.captureBtn.style.display = 'block';
                 });
 
-                // Handle barcode detection
+                // Handle DataMatrix detection
                 Quagga.onDetected(function(result) {
                     if (!isScanning) return;
                     
                     const code = result.codeResult.code;
-                    console.log('Barcode detected:', code);
+                    console.log('DataMatrix detected:', code);
                     
                     // Show detected barcode
                     elements.barcodeInfo.classList.remove('hidden');
                     elements.barcodeData.textContent = code;
-                    updateStatus('✅ Barcode detected! Processing...', 'detected');
+                    updateStatus('✅ DataMatrix detected! Processing...', 'detected');
                     
-                    // Stop scanning and process
+                    // Stop scanning and process automatically
                     isScanning = false;
                     detectedBarcode = code;
                     
                     // Process the barcode after a short delay
                     setTimeout(() => {
-                        processBarcode(code);
+                        processDocument(code, 'DataMatrix Auto-Detected');
                     }, 1000);
                 });
 
@@ -1117,6 +1121,114 @@
                 updateStatus(`❌ ${errorMsg}`, 'error');
                 showTestMode();
             }
+        }
+
+        // Manual capture function - takes picture without barcode detection
+        async function manualCapture() {
+            if (!isScanning) {
+                alert('Camera is not active. Please start the camera first.');
+                return;
+            }
+
+            try {
+                updateStatus('📸 Taking picture manually...', 'processing');
+                console.log('Manual capture initiated');
+                
+                // Stop scanning temporarily
+                const wasScanning = isScanning;
+                isScanning = false;
+                
+                // Show manual capture info
+                elements.barcodeInfo.classList.remove('hidden');
+                elements.barcodeData.textContent = 'Manual Capture - No barcode required';
+                
+                // Process without barcode
+                await processDocument(null, 'Manual Capture');
+                
+            } catch (error) {
+                console.error('Manual capture error:', error);
+                updateStatus(`❌ Manual capture failed: ${error.message}`, 'error');
+                // Resume scanning if it was active
+                isScanning = true;
+            }
+        }
+
+        // Updated process function that handles both automatic and manual captures
+        async function processDocument(barcode, captureType) {
+            try {
+                updateStatus('📤 Processing document with Vantage...', 'processing');
+                console.log(`Processing document - Type: ${captureType}, Barcode: ${barcode || 'None'}`);
+                
+                // Capture image from camera
+                const imageBlob = await captureImage();
+                if (!imageBlob) {
+                    updateStatus('❌ Failed to capture image', 'error');
+                    return;
+                }
+
+                await processDocumentWithVantage(barcode, imageBlob, captureType);
+
+            } catch (error) {
+                console.error('Document processing error:', error);
+                updateStatus(`❌ Processing failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Updated Vantage processing function
+        async function processDocumentWithVantage(barcode, imageBlob, captureType) {
+            try {
+                updateStatus('📤 Processing document with Vantage...', 'processing');
+                
+                // Authenticate with Vantage
+                if (!await authenticateWithVantage()) {
+                    return;
+                }
+
+                // Create transaction
+                updateStatus('🔄 Creating transaction...', 'processing');
+                const transactionId = await createVantageTransaction();
+                console.log('Transaction created:', transactionId);
+
+                // Upload image
+                updateStatus('📸 Uploading document...', 'processing');
+                await uploadImageToVantage(transactionId, imageBlob);
+                console.log('Image uploaded successfully');
+
+                // Start processing
+                updateStatus('⚡ Starting document processing...', 'processing');
+                await startTransaction(transactionId);
+
+                // Show success with capture type info
+                showSuccess(transactionId, barcode, captureType);
+
+            } catch (error) {
+                console.error('Processing error:', error);
+                updateStatus(`❌ Processing failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Updated success function
+        function showSuccess(transactionId, barcode, captureType) {
+            stopScanning();
+            elements.cameraSection.classList.add('hidden');
+            elements.successSection.classList.remove('hidden');
+            
+            // Update success message with capture details
+            const captureInfo = barcode ? 
+                `${captureType}: ${barcode}` : 
+                captureType;
+            
+            elements.transactionId.textContent = `Transaction ID: ${transactionId}`;
+            
+            // Add capture info to success screen
+            const captureDetails = document.createElement('p');
+            captureDetails.style.color = '#6c757d';
+            captureDetails.style.fontSize = '0.9rem';
+            captureDetails.textContent = captureInfo;
+            elements.transactionInfo.appendChild(captureDetails);
+            
+            elements.resetBtn.classList.remove('hidden');
+            elements.startBtn.classList.add('hidden');
         }
 
         // Stop scanning
@@ -1146,7 +1258,7 @@
         }
 
         // Initialize app
-        console.log('Barcode Scanner App initialized');
+        console.log('DataMatrix Document Scanner App initialized');
         updateStatus('📱 Configure settings and start camera', 'scanning');
     </script>
 </body>
