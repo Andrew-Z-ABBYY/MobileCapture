@@ -347,8 +347,11 @@
                 
                 <!-- Server Configuration -->
                 <div class="form-group">
-                    <label for="base-url">Base URL</label>
-                    <input type="text" id="base-url" placeholder="https://your-vantage-server.com" value="">
+                    <label for="tenant">Tenant Name</label>
+                    <input type="text" id="tenant" placeholder="your-tenant-name" value="">
+                    <small style="color: #6c757d; font-size: 0.75rem; margin-top: 4px; display: block;">
+                        💡 Just enter your tenant name (e.g., "demo-tenant"). The full URL will be constructed automatically.
+                    </small>
                 </div>
                 
                 <!-- OAuth Client Configuration -->
@@ -460,7 +463,7 @@
 
         // Configuration
         const config = {
-            baseUrl: '',
+            tenant: '',
             clientId: '',
             clientSecret: '',
             username: '',
@@ -468,9 +471,9 @@
             skillId: ''
         };
 
-        // Demo configuration for easier testing
+        // Demo configuration with tenant name only
         const demoConfig = {
-            baseUrl: 'https://demo.vantage-cloud.com',
+            tenant: 'demo-tenant',
             clientId: 'demo-client-id',
             clientSecret: 'demo-client-secret',
             username: 'demo-user',
@@ -492,13 +495,25 @@
             stopBtn: document.getElementById('stop-btn'),
             resetBtn: document.getElementById('reset-btn'),
             captureBtn: document.getElementById('capture-btn'),
-            baseUrl: document.getElementById('base-url'),
+            tenant: document.getElementById('tenant'), // Changed from baseUrl
             clientId: document.getElementById('client-id'),
             clientSecret: document.getElementById('client-secret'),
             username: document.getElementById('username'),
             password: document.getElementById('password'),
             skillId: document.getElementById('skill-id')
         };
+
+        // Function to construct base URL from tenant name
+        function getBaseUrl(tenant) {
+            // Support different Vantage regions
+            if (tenant.includes('.')) {
+                // If tenant already contains domain, use as-is
+                return tenant.startsWith('https://') ? tenant : `https://${tenant}`;
+            }
+            
+            // Default to EU region, but you can add logic for other regions
+            return `https://${tenant}.vantage-eu.abbyy.com`;
+        }
 
         // Update status display
         function updateStatus(message, type = 'scanning') {
@@ -509,7 +524,7 @@
         // Save configuration to local storage
         function saveConfig(profileName) {
             const configData = {
-                baseUrl: elements.baseUrl.value,
+                tenant: elements.tenant.value,
                 clientId: elements.clientId.value,
                 clientSecret: elements.clientSecret.value,
                 username: elements.username.value,
@@ -533,7 +548,7 @@
             const configData = savedConfigs[profileName];
             
             if (configData) {
-                elements.baseUrl.value = configData.baseUrl || '';
+                elements.tenant.value = configData.tenant || '';
                 elements.clientId.value = configData.clientId || '';
                 elements.clientSecret.value = configData.clientSecret || '';
                 elements.username.value = configData.username || '';
@@ -581,7 +596,7 @@
             
             if (isDemoMode) {
                 // Exit demo mode - clear values
-                elements.baseUrl.value = '';
+                elements.tenant.value = '';
                 elements.clientId.value = '';
                 elements.clientSecret.value = '';
                 elements.username.value = '';
@@ -591,7 +606,7 @@
                 demoBtn.className = 'btn-secondary';
             } else {
                 // Enter demo mode - fill values
-                elements.baseUrl.value = demoConfig.baseUrl;
+                elements.tenant.value = demoConfig.tenant;
                 elements.clientId.value = demoConfig.clientId;
                 elements.clientSecret.value = demoConfig.clientSecret;
                 elements.username.value = demoConfig.username;
@@ -604,18 +619,23 @@
 
         // Get configuration from form
         function getConfig() {
-            config.baseUrl = elements.baseUrl.value.trim();
+            config.tenant = elements.tenant.value.trim();
             config.clientId = elements.clientId.value.trim();
             config.clientSecret = elements.clientSecret.value.trim();
             config.username = elements.username.value.trim();
             config.password = elements.password.value.trim();
             config.skillId = elements.skillId.value.trim();
 
-            if (!config.baseUrl || !config.clientId || !config.clientSecret || 
+            if (!config.tenant || !config.clientId || !config.clientSecret || 
                 !config.username || !config.password || !config.skillId) {
                 alert('Please fill in all configuration fields');
                 return false;
             }
+            
+            // Construct the base URL from tenant
+            config.baseUrl = getBaseUrl(config.tenant);
+            console.log('Constructed base URL:', config.baseUrl);
+            
             return true;
         }
 
@@ -660,15 +680,26 @@
                 updateStatus('🔐 Authenticating with Vantage...', 'processing');
                 
                 const tokenUrl = `${config.baseUrl}/auth2/connect/token`;
+                console.log('Token URL:', tokenUrl);
+                
                 const formParams = new URLSearchParams();
                 
-                // Resource Owner Password Credentials Flow parameters
+                // Correct parameters according to documentation
                 formParams.append('grant_type', 'password');
-                formParams.append('client_id', config.clientId);
-                formParams.append('client_secret', config.clientSecret);
+                formParams.append('scope', 'openid permissions global.wildcard'); // Fixed scope format
                 formParams.append('username', config.username);
                 formParams.append('password', config.password);
-                formParams.append('scope', 'global.wildcard permissions openid');
+                formParams.append('client_id', config.clientId);
+                formParams.append('client_secret', config.clientSecret);
+
+                console.log('Request parameters:', {
+                    grant_type: 'password',
+                    scope: 'openid permissions global.wildcard',
+                    username: config.username,
+                    password: '[HIDDEN]',
+                    client_id: config.clientId,
+                    client_secret: '[HIDDEN]'
+                });
 
                 const response = await fetch(tokenUrl, {
                     method: 'POST',
@@ -681,33 +712,71 @@
                     credentials: 'omit'
                 });
 
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+                const responseText = await response.text();
+                console.log('Response body:', responseText);
+
                 if (!response.ok) {
-                    const errorText = await response.text();
                     let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
                     
                     // Parse common OAuth errors
                     try {
-                        const errorData = JSON.parse(errorText);
+                        const errorData = JSON.parse(responseText);
+                        console.log('Parsed error data:', errorData);
+                        
                         if (errorData.error_description) {
                             errorMessage = errorData.error_description;
                         } else if (errorData.error) {
-                            errorMessage = errorData.error;
+                            errorMessage = `OAuth Error: ${errorData.error}`;
+                            
+                            // Add specific error guidance
+                            switch (errorData.error) {
+                                case 'invalid_client':
+                                    errorMessage += ' - Check your Client ID and Client Secret';
+                                    break;
+                                case 'invalid_grant':
+                                    errorMessage += ' - Check your username and password, or ROPC flow may not be enabled for this tenant';
+                                    break;
+                                case 'unauthorized_client':
+                                    errorMessage += ' - Client is not authorized for Resource Owner Password flow';
+                                    break;
+                                case 'unsupported_grant_type':
+                                    errorMessage += ' - Resource Owner Password flow is not supported/enabled on this server';
+                                    break;
+                                case 'invalid_scope':
+                                    errorMessage += ' - The requested scope is invalid or not allowed';
+                                    break;
+                                default:
+                                    errorMessage += ` - ${errorData.error}`;
+                            }
                         }
                     } catch (e) {
-                        // Use original error if JSON parsing fails
-                        errorMessage += `. ${errorText}`;
+                        console.log('Could not parse error as JSON:', e);
+                        errorMessage += `. Response: ${responseText}`;
                     }
                     
                     throw new Error(errorMessage);
                 }
 
-                const data = await response.json();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    throw new Error('Invalid JSON response from server');
+                }
+
                 if (!data.access_token) {
                     throw new Error('No access token received in response');
                 }
                 
                 accessToken = data.access_token;
                 console.log('Authentication successful, token received');
+                console.log('Token expires in:', data.expires_in, 'seconds');
+                console.log('Token type:', data.token_type);
+                console.log('Granted scope:', data.scope);
+                
                 return true;
                 
             } catch (error) {
@@ -1056,7 +1125,7 @@
             stopScanning();
             
             // Reset form values
-            elements.baseUrl.value = '';
+            elements.tenant.value = '';
             elements.clientId.value = '';
             elements.clientSecret.value = '';
             elements.username.value = '';
