@@ -355,8 +355,6 @@
                 </button>
                 <div id="connection-result" class="status-indicator hidden" style="margin-top: 10px; font-size: 0.8rem;"></div>
             </div>
-
-            <!-- Test Mode Section -->
             <div id="test-section" class="config-section hidden">
                 <h3>🧪 Test Mode (No Camera Required)</h3>
                 <p style="color: #6c757d; font-size: 0.9rem; margin-bottom: 15px;">
@@ -370,8 +368,6 @@
                     🚀 Process Test Barcode
                 </button>
             </div>
-
-            <!-- Camera Section -->
             <div id="camera-section" class="hidden">
                 <div class="camera-container">
                     <div id="scanner-container">
@@ -473,79 +469,27 @@
             return true;
         }
 
-        // Test server connection
-        async function testConnection() {
-            if (!getConfig()) return;
-            
-            const testBtn = document.getElementById('test-connection-btn');
-            const resultDiv = document.getElementById('connection-result');
-            
-            testBtn.disabled = true;
-            testBtn.innerHTML = '<span class="loading-spinner"></span>Testing...';
-            resultDiv.classList.remove('hidden');
-            resultDiv.className = 'status-indicator status-processing';
-            resultDiv.textContent = 'Testing connection...';
-            
-            try {
-                // Test 1: Basic connectivity
-                resultDiv.textContent = '🌐 Testing basic connectivity...';
-                const basicUrl = `${config.baseUrl}/auth2/connect/token`;
-                
-                console.log('Testing connection to:', basicUrl);
-                
-                const response = await fetch(basicUrl, {
-                    method: 'HEAD', // Just check if server responds
-                    mode: 'cors',
-                    credentials: 'omit'
-                });
-                
-                console.log('Basic connectivity test - Status:', response.status);
-                
-                // Test 2: Authentication
-                resultDiv.textContent = '🔐 Testing authentication...';
-                const authSuccess = await authenticateWithVantage();
-                
-                if (authSuccess) {
-                    resultDiv.className = 'status-indicator status-success';
-                    resultDiv.textContent = '✅ Connection successful! Authentication working.';
-                } else {
-                    resultDiv.className = 'status-indicator status-error';
-                    resultDiv.textContent = '❌ Connection failed during authentication.';
-                }
-                
-            } catch (error) {
-                console.error('Connection test error:', error);
-                resultDiv.className = 'status-indicator status-error';
-                
-                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                    resultDiv.innerHTML = `❌ Cannot reach server<br><small>• Check server URL: ${config.baseUrl}<br>• Verify server is running<br>• Check network connectivity</small>`;
-                } else {
-                    resultDiv.textContent = `❌ Connection test failed: ${error.message}`;
-                }
-            } finally {
-                testBtn.disabled = false;
-                testBtn.innerHTML = '🌐 Test Connection';
-            }
-        }
-
-        // Authenticate with Vantage
+        // Authenticate with Vantage - Updated to match working FlexiCapture code
         async function authenticateWithVantage() {
             try {
                 updateStatus('🔐 Authenticating with Vantage...', 'processing');
                 
-                console.log('Attempting authentication with:', config.baseUrl);
+                console.log('=== AUTHENTICATION DEBUG ===');
+                console.log('Base URL:', config.baseUrl);
+                console.log('Client ID:', config.clientId);
+                console.log('Client Secret length:', config.clientSecret.length);
                 
                 const tokenUrl = `${config.baseUrl}/auth2/connect/token`;
                 console.log('Token URL:', tokenUrl);
 
-                const requestBody = new URLSearchParams({
-                    grant_type: 'client_credentials',
-                    client_id: config.clientId,
-                    client_secret: config.clientSecret,
-                    scope: 'global.wildcard permissions openid'
-                });
+                // Build form data exactly like the working FlexiCapture code
+                const formParams = new URLSearchParams();
+                formParams.append('grant_type', 'client_credentials');
+                formParams.append('client_id', config.clientId);
+                formParams.append('client_secret', config.clientSecret);
+                formParams.append('scope', 'global.wildcard permissions openid');
 
-                console.log('Request body (client_secret hidden):', {
+                console.log('Form data (without secret):', {
                     grant_type: 'client_credentials',
                     client_id: config.clientId,
                     client_secret: '[HIDDEN]',
@@ -558,29 +502,64 @@
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'Accept': 'application/json'
                     },
-                    body: requestBody,
-                    mode: 'cors', // Explicitly set CORS mode
-                    credentials: 'omit' // Don't send cookies
+                    body: formParams.toString(),
+                    mode: 'cors',
+                    credentials: 'omit'
                 });
 
                 console.log('Response status:', response.status);
-                console.log('Response headers:', [...response.headers.entries()]);
+                console.log('Response status text:', response.statusText);
+                console.log('Response headers:');
+                for (const [key, value] of response.headers.entries()) {
+                    console.log(`  ${key}: ${value}`);
+                }
 
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('Error response body:', errorText);
-                    throw new Error(`Authentication failed: ${response.status} ${response.statusText}. Response: ${errorText}`);
+                    
+                    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                    let suggestion = '';
+                    
+                    switch (response.status) {
+                        case 400:
+                            suggestion = 'Bad Request - Check client credentials format';
+                            break;
+                        case 401:
+                            suggestion = 'Unauthorized - Invalid client_id or client_secret';
+                            break;
+                        case 403:
+                            suggestion = 'Forbidden - Client may not have required permissions';
+                            break;
+                        case 404:
+                            suggestion = 'Not Found - Check token endpoint URL';
+                            break;
+                        case 405:
+                            suggestion = 'Method Not Allowed - Server may not support POST on this endpoint';
+                            break;
+                        case 500:
+                            suggestion = 'Server Error - Contact Vantage administrator';
+                            break;
+                        default:
+                            suggestion = 'Unexpected HTTP status code';
+                    }
+                    
+                    throw new Error(`${errorMessage}. ${suggestion}. Response: ${errorText}`);
                 }
 
                 const data = await response.json();
-                accessToken = data.access_token;
-                
-                console.log('Authentication successful');
-                console.log('Token received (length):', accessToken.length);
+                console.log('Authentication successful!');
                 console.log('Token type:', data.token_type);
+                console.log('Access token length:', data.access_token?.length || 0);
                 console.log('Expires in:', data.expires_in);
                 
+                if (!data.access_token) {
+                    throw new Error('No access token received in response');
+                }
+                
+                accessToken = data.access_token;
                 return true;
+                
             } catch (error) {
                 console.error('Authentication error details:', error);
                 
@@ -589,26 +568,24 @@
                 
                 if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
                     errorMessage = 'Network connection failed';
-                    suggestion = 'Check: 1) Server URL is correct, 2) Server is running, 3) CORS is enabled on server, 4) Network connectivity';
+                    suggestion = 'Possible causes:\n• CORS not enabled on server\n• Server unreachable\n• Network connectivity issues\n• Firewall blocking request';
                 } else if (error.message.includes('CORS')) {
                     errorMessage = 'CORS policy blocked the request';
-                    suggestion = 'Server must allow cross-origin requests from this domain';
+                    suggestion = 'Server must enable CORS headers:\n• Access-Control-Allow-Origin: *\n• Access-Control-Allow-Methods: POST\n• Access-Control-Allow-Headers: Content-Type, Authorization';
                 } else if (error.message.includes('DNS')) {
                     errorMessage = 'Could not resolve server address';
                     suggestion = 'Check if the server URL is correct and accessible';
                 } else {
                     errorMessage = error.message;
+                    suggestion = 'Check browser console (F12) for detailed error information';
                 }
                 
                 updateStatus(`❌ ${errorMessage}`, 'error');
                 
-                if (suggestion) {
-                    console.log('💡 Suggestion:', suggestion);
-                    // Show suggestion to user
-                    setTimeout(() => {
-                        alert(`Authentication failed!\n\n${errorMessage}\n\nSuggestion: ${suggestion}`);
-                    }, 100);
-                }
+                // Show detailed error to user
+                setTimeout(() => {
+                    alert(`Authentication Failed!\n\n${errorMessage}\n\nTroubleshooting:\n${suggestion}\n\nCheck browser console (F12) for technical details.`);
+                }, 100);
                 
                 return false;
             }
@@ -741,7 +718,188 @@
             });
         }
 
-        // Show test mode when camera is not available
+        // Test server connection with more detailed debugging
+        async function testConnection() {
+            if (!getConfig()) return;
+            
+            const testBtn = document.getElementById('test-connection-btn');
+            const resultDiv = document.getElementById('connection-result');
+            
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<span class="loading-spinner"></span>Testing...';
+            resultDiv.classList.remove('hidden');
+            resultDiv.className = 'status-indicator status-processing';
+            resultDiv.textContent = 'Testing connection...';
+            
+            try {
+                // Test 1: Basic connectivity check
+                resultDiv.textContent = '🌐 Step 1: Testing basic connectivity...';
+                const basicUrl = `${config.baseUrl}/auth2/connect/token`;
+                
+                console.log('=== CONNECTION TEST DEBUG ===');
+                console.log('Testing connection to:', basicUrl);
+                console.log('Config:', {
+                    baseUrl: config.baseUrl,
+                    clientId: config.clientId,
+                    clientSecret: config.clientSecret ? '[SET]' : '[NOT SET]',
+                    skillId: config.skillId
+                });
+                
+                let headResponse;
+                try {
+                    headResponse = await fetch(basicUrl, {
+                        method: 'HEAD',
+                        mode: 'cors',
+                        credentials: 'omit'
+                    });
+                    console.log('HEAD request status:', headResponse.status);
+                    console.log('HEAD request headers:', [...headResponse.headers.entries()]);
+                } catch (headError) {
+                    console.log('HEAD request failed:', headError);
+                    resultDiv.className = 'status-indicator status-error';
+                    resultDiv.innerHTML = `❌ Cannot reach server<br><small>Server appears to be unreachable at: ${config.baseUrl}<br>Error: ${headError.message}</small>`;
+                    return;
+                }
+                
+                // Test 2: OPTIONS preflight check (CORS)
+                resultDiv.textContent = '🔍 Step 2: Testing CORS preflight...';
+                try {
+                    const optionsResponse = await fetch(basicUrl, {
+                        method: 'OPTIONS',
+                        mode: 'cors',
+                        credentials: 'omit',
+                        headers: {
+                            'Access-Control-Request-Method': 'POST',
+                            'Access-Control-Request-Headers': 'Content-Type, Authorization'
+                        }
+                    });
+                    console.log('OPTIONS request status:', optionsResponse.status);
+                    console.log('OPTIONS response headers:', [...optionsResponse.headers.entries()]);
+                    
+                    // Check for CORS headers
+                    const corsOrigin = optionsResponse.headers.get('Access-Control-Allow-Origin');
+                    const corsMethods = optionsResponse.headers.get('Access-Control-Allow-Methods');
+                    const corsHeaders = optionsResponse.headers.get('Access-Control-Allow-Headers');
+                    
+                    console.log('CORS Headers:', { corsOrigin, corsMethods, corsHeaders });
+                    
+                    if (!corsOrigin) {
+                        resultDiv.className = 'status-indicator status-error';
+                        resultDiv.innerHTML = `❌ CORS not configured<br><small>Server doesn't allow cross-origin requests.<br>Contact your Vantage admin to enable CORS.</small>`;
+                        return;
+                    }
+                } catch (optionsError) {
+                    console.log('OPTIONS request failed:', optionsError);
+                    // This might be normal if server doesn't support OPTIONS
+                }
+                
+                // Test 3: Authentication attempt with detailed error handling
+                resultDiv.textContent = '🔐 Step 3: Testing authentication...';
+                
+                const tokenUrl = `${config.baseUrl}/auth2/connect/token`;
+                const requestBody = new URLSearchParams({
+                    grant_type: 'client_credentials',
+                    client_id: config.clientId,
+                    client_secret: config.clientSecret,
+                    scope: 'global.wildcard permissions openid'
+                });
+
+                console.log('Auth request details:', {
+                    url: tokenUrl,
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept': 'application/json'
+                    },
+                    bodyParams: {
+                        grant_type: 'client_credentials',
+                        client_id: config.clientId,
+                        client_secret: '[HIDDEN]',
+                        scope: 'global.wildcard permissions openid'
+                    }
+                });
+
+                const authResponse = await fetch(tokenUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept': 'application/json'
+                    },
+                    body: requestBody,
+                    mode: 'cors',
+                    credentials: 'omit'
+                });
+
+                console.log('Auth response status:', authResponse.status);
+                console.log('Auth response headers:', [...authResponse.headers.entries()]);
+
+                if (!authResponse.ok) {
+                    const errorText = await authResponse.text();
+                    console.log('Auth error response body:', errorText);
+                    
+                    let errorDetails = `HTTP ${authResponse.status}: ${authResponse.statusText}`;
+                    let suggestion = '';
+                    
+                    switch (authResponse.status) {
+                        case 400:
+                            suggestion = 'Check client credentials format';
+                            break;
+                        case 401:
+                            suggestion = 'Invalid client_id or client_secret';
+                            break;
+                        case 403:
+                            suggestion = 'Client may not have required permissions';
+                            break;
+                        case 404:
+                            suggestion = 'Check the token endpoint URL';
+                            break;
+                        case 500:
+                            suggestion = 'Server error - contact Vantage admin';
+                            break;
+                    }
+                    
+                    resultDiv.className = 'status-indicator status-error';
+                    resultDiv.innerHTML = `❌ Authentication failed<br><small>${errorDetails}<br>${suggestion}<br><br>Response: ${errorText}</small>`;
+                    return;
+                }
+
+                // Success!
+                const authData = await authResponse.json();
+                console.log('Auth success! Token length:', authData.access_token?.length);
+                
+                accessToken = authData.access_token;
+                
+                resultDiv.className = 'status-indicator status-success';
+                resultDiv.innerHTML = `✅ Connection successful!<br><small>Authentication working. Token received.<br>Ready to scan documents!</small>`;
+                
+            } catch (error) {
+                console.error('Connection test error:', error);
+                resultDiv.className = 'status-indicator status-error';
+                
+                let errorMessage = 'Unknown error';
+                let suggestion = '';
+                
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Network connection failed';
+                    suggestion = 'Check: 1) Server URL is correct, 2) Server is running, 3) Network connectivity, 4) CORS configuration';
+                } else if (error.message.includes('CORS')) {
+                    errorMessage = 'CORS policy blocked the request';
+                    suggestion = 'Server must allow cross-origin requests from GitHub Pages';
+                } else if (error.message.includes('DNS')) {
+                    errorMessage = 'Could not resolve server address';
+                    suggestion = 'Check if the server URL is correct and accessible';
+                } else {
+                    errorMessage = error.message;
+                    suggestion = 'Check browser console (F12) for more details';
+                }
+                
+                resultDiv.innerHTML = `❌ ${errorMessage}<br><small>${suggestion}<br><br>Full error: ${error.toString()}</small>`;
+                
+            } finally {
+                testBtn.disabled = false;
+                testBtn.innerHTML = '🌐 Test Connection';
+            }
+        }
         function showTestMode() {
             elements.testSection.classList.remove('hidden');
             elements.cameraSection.classList.add('hidden');
@@ -968,17 +1126,10 @@
                 Quagga.stop();
             }
             
-            // Stop camera stream
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
-                currentStream = null;
-            }
-            
             elements.startBtn.classList.remove('hidden');
             elements.stopBtn.classList.add('hidden');
             elements.configSection.classList.remove('hidden');
             elements.cameraSection.classList.add('hidden');
-            elements.testSection.classList.add('hidden');
         }
 
         // Reset application
@@ -986,13 +1137,12 @@
             stopScanning();
             elements.successSection.classList.add('hidden');
             elements.configSection.classList.remove('hidden');
-            elements.testSection.classList.add('hidden');
             elements.barcodeInfo.classList.add('hidden');
             elements.resetBtn.classList.add('hidden');
             elements.startBtn.classList.remove('hidden');
             detectedBarcode = null;
             accessToken = '';
-            updateStatus('📱 Configure settings and start camera', 'scanning');
+            updateStatus('🔍 Ready to scan', 'scanning');
         }
 
         // Initialize app
